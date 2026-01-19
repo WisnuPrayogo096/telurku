@@ -2,10 +2,10 @@
 session_start();
 
 // Database Configuration
-define('DB_HOST', '');
-define('DB_USER', '');
-define('DB_PASS', '');
-define('DB_NAME', '');
+define('DB_HOST', '10.18.3.69');
+define('DB_USER', 'simsatsetroot');
+define('DB_PASS', '17082013');
+define('DB_NAME', 'db_wisnu');
 
 // Create Connection
 $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
@@ -17,6 +17,42 @@ if (!$conn) {
 
 // Set charset
 mysqli_set_charset($conn, "utf8");
+
+/**
+ * Pastikan skema tabel barang memiliki kolom pendukung satuan.
+ * Ini auto-migrasi ringan agar fitur satuan (pcs/kg) & pack size bisa dipakai.
+ */
+function ensureBarangSchema($conn)
+{
+    $columns = [];
+    if ($result = mysqli_query($conn, "SHOW COLUMNS FROM barang")) {
+        while ($row = mysqli_fetch_assoc($result)) {
+            $columns[$row['Field']] = $row;
+        }
+    }
+
+    $alterParts = [];
+    if (!isset($columns['unit_type'])) {
+        $alterParts[] = "ADD COLUMN unit_type ENUM('pcs','kg') NOT NULL DEFAULT 'pcs' AFTER nama_barang";
+    }
+    if (!isset($columns['isi_renteng'])) {
+        $alterParts[] = "ADD COLUMN isi_renteng INT NOT NULL DEFAULT 0 AFTER unit_type";
+    }
+    if (!isset($columns['isi_pax'])) {
+        $alterParts[] = "ADD COLUMN isi_pax INT NOT NULL DEFAULT 0 AFTER isi_renteng";
+    }
+    if (!isset($columns['isi_slop'])) {
+        $alterParts[] = "ADD COLUMN isi_slop INT NOT NULL DEFAULT 0 AFTER isi_pax";
+    }
+
+    if ($alterParts) {
+        // Jalankan satu ALTER TABLE untuk semua kolom baru.
+        mysqli_query($conn, "ALTER TABLE barang " . implode(', ', $alterParts));
+    }
+}
+
+// Jalankan penyesuaian skema (aman jika sudah pernah dijalankan).
+ensureBarangSchema($conn);
 
 // Function untuk cek login
 function isLoggedIn()

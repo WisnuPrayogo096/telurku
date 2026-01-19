@@ -18,6 +18,7 @@ if (!$penjualan) {
 $detail_query = "SELECT 
                     dp.*,
                     b.nama_barang,
+                    b.unit_type,
                     u.nama as owner_nama
                  FROM detail_penjualan dp
                  JOIN barang b ON dp.barang_id = b.id
@@ -34,6 +35,7 @@ $detail_result = mysqli_query($conn, $detail_query);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Detail Transaksi - TELURKU</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
 </head>
 
 <body class="bg-gray-100">
@@ -77,7 +79,8 @@ $detail_result = mysqli_query($conn, $detail_query);
                                     </span>
                                 </p>
                                 <p class="text-sm text-gray-600">
-                                    <?php echo $item['jumlah']; ?> x <?php echo formatRupiah($item['harga_satuan']); ?>
+                                    <?php echo $item['jumlah']; ?> <?php echo ($item['unit_type'] ?? 'pcs') === 'kg' ? 'kg' : 'pcs'; ?>
+                                    x <?php echo formatRupiah($item['harga_satuan']); ?>
                                 </p>
                             </div>
                             <div class="text-right">
@@ -97,8 +100,8 @@ $detail_result = mysqli_query($conn, $detail_query);
         </div>
 
         <div class="text-center">
-            <button onclick="window.print()" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">
-                🖨️ Cetak Struk
+            <button onclick="window.print()" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 inline-flex items-center gap-2">
+                <i class="ph ph-printer"></i> Cetak Struk
             </button>
         </div>
     </div>

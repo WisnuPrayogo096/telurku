@@ -56,6 +56,7 @@ $count_transaksi = mysqli_num_rows($result);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Laporan QRIS - TELURKU</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
 </head>
 
 <body class="bg-gray-100">
@@ -97,7 +98,7 @@ $count_transaksi = mysqli_num_rows($result);
         <!-- Info -->
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <div class="flex items-start gap-2">
-                <span class="text-2xl">📱</span>
+                <span class="text-2xl text-blue-600"><i class="ph ph-device-mobile"></i></span>
                 <div>
                     <h3 class="font-medium text-blue-900 mb-1">Tentang Laporan QRIS</h3>
                     <p class="text-blue-800 text-sm">

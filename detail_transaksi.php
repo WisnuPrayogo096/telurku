@@ -79,7 +79,7 @@ $detail_result = mysqli_query($conn, $detail_query);
                                     </span>
                                 </p>
                                 <p class="text-sm text-gray-600">
-                                    <?php echo $item['jumlah']; ?> <?php echo ($item['unit_type'] ?? 'pcs') === 'kg' ? 'kg' : 'pcs'; ?>
+                                    <?php echo $item['jumlah']; ?> <?php echo $item['unit'] ?? 'pcs'; ?>
                                     x <?php echo formatRupiah($item['harga_satuan']); ?>
                                 </p>
                             </div>

@@ -10,6 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
     $tanggal = $_POST['tanggal'];
     $metode_bayar = $_POST['metode_bayar'];
     $barang_ids = $_POST['barang_id'];
+    $units = $_POST['unit'];
     $jumlahs = $_POST['jumlah'];
 
     $total_bayar = 0;
@@ -19,6 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
     foreach ($barang_ids as $index => $barang_id) {
         if (empty($barang_id)) continue;
 
+        $unit = $units[$index] ?? 'pcs';
         $jumlah = (float)$jumlahs[$index];
         if ($jumlah <= 0) continue;
 
@@ -32,20 +34,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
             break;
         }
 
-        if ($barang['stok'] < $jumlah) {
+        // Hitung harga berdasarkan unit
+        $harga_satuan = $barang['harga_jual'];
+        if ($unit === 'renteng' && ($barang['harga_jual_renteng'] ?? 0) > 0) {
+            $harga_satuan = $barang['harga_jual_renteng'];
+        } elseif ($unit === 'pcs' && ($barang['harga_jual_pcs'] ?? 0) > 0) {
+            $harga_satuan = $barang['harga_jual_pcs'];
+        }
+
+        // Hitung jumlah dalam pcs untuk cek stok
+        $jumlah_pcs = $jumlah;
+        if ($unit === 'renteng') {
+            $jumlah_pcs = $jumlah * ($barang['isi_renteng'] ?? 1);
+        }
+
+        if ($barang['stok'] < $jumlah_pcs) {
             $error = "Stok {$barang['nama_barang']} tidak cukup!";
             break;
         }
 
-        $subtotal = $barang['harga_jual'] * $jumlah;
+        $subtotal = $harga_satuan * $jumlah;
         $total_bayar += $subtotal;
 
         $items[] = [
             'barang_id' => $barang_id,
+            'unit' => $unit,
             'jumlah' => $jumlah,
-            'harga_satuan' => $barang['harga_jual'],
+            'harga_satuan' => $harga_satuan,
             'subtotal' => $subtotal,
-            'owner_id' => $barang['owner_id']
+            'owner_id' => $barang['owner_id'],
+            'jumlah_pcs' => $jumlah_pcs
         ];
     }
 
@@ -63,14 +81,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
 
             // Insert detail dan update stok
             foreach ($items as $item) {
-                $query = "INSERT INTO detail_penjualan (penjualan_id, barang_id, jumlah, harga_satuan, subtotal, owner_id) 
-                         VALUES (?, ?, ?, ?, ?, ?)";
+                $query = "INSERT INTO detail_penjualan (penjualan_id, barang_id, unit, jumlah, harga_satuan, subtotal, owner_id) 
+                         VALUES (?, ?, ?, ?, ?, ?, ?)";
                 $stmt = mysqli_prepare($conn, $query);
                 mysqli_stmt_bind_param(
                     $stmt,
-                    "iidddi",
+                    "iisdddi",
                     $penjualan_id,
                     $item['barang_id'],
+                    $item['unit'],
                     $item['jumlah'],
                     $item['harga_satuan'],
                     $item['subtotal'],
@@ -81,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
                 // Update stok
                 $query = "UPDATE barang SET stok = stok - ? WHERE id = ?";
                 $stmt = mysqli_prepare($conn, $query);
-                mysqli_stmt_bind_param($stmt, "di", $item['jumlah'], $item['barang_id']);
+                mysqli_stmt_bind_param($stmt, "di", $item['jumlah_pcs'], $item['barang_id']);
                 mysqli_stmt_execute($stmt);
             }
 
@@ -215,8 +234,11 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
                                         <?php foreach ($barang_list as $barang): ?>
                                             <option value="<?php echo $barang['id']; ?>"
                                                 data-harga="<?php echo $barang['harga_jual']; ?>"
+                                                data-harga-renteng="<?php echo $barang['harga_jual_renteng'] ?? 0; ?>"
+                                                data-harga-pcs="<?php echo $barang['harga_jual_pcs'] ?? 0; ?>"
                                                 data-stok="<?php echo $barang['stok']; ?>"
                                                 data-unit="<?php echo $barang['unit_type']; ?>"
+                                                data-isi-renteng="<?php echo $barang['isi_renteng'] ?? 0; ?>"
                                                 data-owner="<?php echo $barang['owner_nama']; ?>"
                                                 data-nama="<?php echo htmlspecialchars($barang['nama_barang']); ?>">
                                                 <?php echo $barang['nama_barang']; ?> (<?php echo $barang['owner_nama']; ?>) - Stok: <?php echo $barang['unit_type'] === 'kg' ? $barang['stok'] . ' kg' : $barang['stok'] . ' pcs'; ?> - <?php echo formatRupiah($barang['harga_jual']); ?>
@@ -235,10 +257,11 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
 
                         <div class="border rounded-lg overflow-hidden">
                             <div class="hidden md:grid grid-cols-12 bg-gray-100 text-xs font-semibold text-gray-700 px-3 py-2">
-                                <div class="col-span-5">Barang</div>
+                                <div class="col-span-4">Barang</div>
+                                <div class="col-span-2 text-center">Unit</div>
                                 <div class="col-span-2 text-center">Qty</div>
                                 <div class="col-span-2 text-right">Harga</div>
-                                <div class="col-span-2 text-right">Subtotal</div>
+                                <div class="col-span-1 text-right">Subtotal</div>
                                 <div class="col-span-1 text-center">Aksi</div>
                             </div>
                             <div id="itemContainer" class="divide-y">
@@ -324,8 +347,20 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
         }
 
         function updateRow(row) {
-            const harga = parseFloat(row.dataset.harga || 0);
-            const unit = row.dataset.unit || 'pcs';
+            const unitSelect = row.querySelector('.unit-select');
+            const selectedUnit = unitSelect ? unitSelect.value : 'pcs';
+            const hargaRenteng = parseFloat(row.dataset.hargaRenteng || 0);
+            const hargaPcs = parseFloat(row.dataset.hargaPcs || 0);
+            const hargaDefault = parseFloat(row.dataset.harga || 0);
+            const isiRenteng = parseInt(row.dataset.isiRenteng || 0);
+
+            let harga = hargaDefault;
+            if (selectedUnit === 'renteng' && hargaRenteng > 0) {
+                harga = hargaRenteng;
+            } else if (selectedUnit === 'pcs' && hargaPcs > 0) {
+                harga = hargaPcs;
+            }
+
             const qtyInput = row.querySelector('.jumlah-input');
             const hargaSpan = row.querySelector('.harga-satuan');
             const subtotalSpan = row.querySelector('.subtotal-item');
@@ -334,19 +369,13 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
             const qty = parseFloat(qtyInput?.value || 0);
 
             if (unitLabel) {
-                unitLabel.textContent = unit === 'kg' ? 'kg' : 'pcs';
+                unitLabel.textContent = selectedUnit === 'renteng' ? 'renteng' : 'pcs';
             }
 
             if (qtyInput) {
-                if (unit === 'kg') {
-                    qtyInput.step = '0.01';
-                    qtyInput.min = '0.01';
-                    qtyInput.placeholder = 'kg (mis. 1.5)';
-                } else {
-                    qtyInput.step = '1';
-                    qtyInput.min = '1';
-                    qtyInput.placeholder = 'Qty';
-                }
+                qtyInput.step = '1';
+                qtyInput.min = '1';
+                qtyInput.placeholder = 'Qty';
             }
 
             if (hargaSpan) {
@@ -416,31 +445,46 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
             const row = document.createElement('div');
             row.className = "item-row px-3 py-3 grid grid-cols-1 md:grid-cols-12 gap-3 items-center hover:bg-gray-50";
             row.dataset.harga = data.harga;
+            row.dataset.hargaRenteng = data.hargaRenteng;
+            row.dataset.hargaPcs = data.hargaPcs;
             row.dataset.unit = data.unit;
+            row.dataset.isiRenteng = data.isiRenteng;
             row.dataset.nama = data.nama;
+
+            const unitOptions = data.isiRenteng > 0 ? `
+                <option value="pcs">Per Pcs</option>
+                <option value="renteng">Per Renteng (${data.isiRenteng} pcs)</option>
+            ` : `
+                <option value="pcs">Per Pcs</option>
+            `;
 
             row.innerHTML = `
                 <input type="hidden" name="barang_id[]" value="${data.id}">
-                <div class="md:col-span-5">
+                <div class="md:col-span-4">
                     <div class="text-sm font-semibold text-gray-800">${data.nama}</div>
                     <div class="text-xs text-gray-500">${data.owner} · Stok: ${data.stok} ${data.unit === 'kg' ? 'kg' : 'pcs'}</div>
+                </div>
+
+                <div class="md:col-span-2">
+                    <select name="unit[]" class="unit-select w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500 text-sm">
+                        ${unitOptions}
+                    </select>
                 </div>
 
                 <div class="md:col-span-2 flex items-center gap-2">
                     <div class="flex-1">
                         <input type="number" name="jumlah[]" value="${data.unit === 'kg' ? '0.5' : '1'}"
                             class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500 text-sm jumlah-input"
-                            ${data.unit === 'kg' ? 'step="0.01" min="0.01"' : 'step="1" min="1"'}
-                            placeholder="${data.unit === 'kg' ? 'kg (mis. 1.5)' : 'Qty'}">
+                            step="1" min="1" placeholder="Qty">
                     </div>
-                    <span class="hidden md:inline text-xs text-gray-500 unit-label">${data.unit === 'kg' ? 'kg' : 'pcs'}</span>
+                    <span class="hidden md:inline text-xs text-gray-500 unit-label">pcs</span>
                 </div>
 
                 <div class="md:col-span-2 md:text-right">
                     <div class="text-sm font-medium harga-satuan">${formatRupiahJs(data.harga)}</div>
                 </div>
 
-                <div class="md:col-span-2 md:text-right">
+                <div class="md:col-span-1 md:text-right">
                     <div class="text-sm font-bold text-blue-600 subtotal-item">Rp 0</div>
                 </div>
 
@@ -458,10 +502,18 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
 
         function attachListenersToRow(row) {
             const qtyInput = row.querySelector('.jumlah-input');
+            const unitSelect = row.querySelector('.unit-select');
             const deleteBtn = row.querySelector('.hapus-row');
 
             if (qtyInput) {
                 qtyInput.addEventListener('input', () => {
+                    updateRow(row);
+                    updateTotals();
+                });
+            }
+
+            if (unitSelect) {
+                unitSelect.addEventListener('change', () => {
                     updateRow(row);
                     updateTotals();
                 });
@@ -499,7 +551,10 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
                 owner: opt.dataset.owner,
                 stok: opt.dataset.stok,
                 unit: opt.dataset.unit,
-                harga: opt.dataset.harga
+                harga: opt.dataset.harga,
+                hargaRenteng: opt.dataset.hargaRenteng,
+                hargaPcs: opt.dataset.hargaPcs,
+                isiRenteng: opt.dataset.isiRenteng
             };
 
             createRow(data);

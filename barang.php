@@ -13,6 +13,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $unit_type = $_POST['unit_type'] ?? 'pcs';
     $harga_beli = $_POST['harga_beli'] === '' ? 0 : $_POST['harga_beli']; // Harga beli opsional, 0 jika tidak diisi
     $harga_jual = $_POST['harga_jual'];
+    $harga_jual_renteng = $_POST['harga_jual_renteng'] === '' ? 0 : $_POST['harga_jual_renteng'];
+    $harga_jual_pcs = $_POST['harga_jual_pcs'] === '' ? 0 : $_POST['harga_jual_pcs'];
     $owner_id = $_POST['owner_id'];
 
     // Pack size (opsional)
@@ -44,16 +46,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // Update
             $id = $_POST['id'];
             $query = "UPDATE barang 
-                      SET nama_barang=?, unit_type=?, isi_renteng=?, isi_pax=?, isi_slop=?, harga_beli=?, harga_jual=?, stok=?, owner_id=? 
+                      SET nama_barang=?, unit_type=?, isi_renteng=?, isi_pax=?, isi_slop=?, harga_beli=?, harga_jual=?, harga_jual_renteng=?, harga_jual_pcs=?, stok=?, owner_id=? 
                       WHERE id=?";
             $stmt = mysqli_prepare($conn, $query);
-            mysqli_stmt_bind_param($stmt, "ssiiidddii", $nama_barang, $unit_type, $isi_renteng, $isi_pax, $isi_slop, $harga_beli, $harga_jual, $stok, $owner_id, $id);
+            mysqli_stmt_bind_param($stmt, "ssiiidddddii", $nama_barang, $unit_type, $isi_renteng, $isi_pax, $isi_slop, $harga_beli, $harga_jual, $harga_jual_renteng, $harga_jual_pcs, $stok, $owner_id, $id);
         } else {
             // Insert
-            $query = "INSERT INTO barang (nama_barang, unit_type, isi_renteng, isi_pax, isi_slop, harga_beli, harga_jual, stok, owner_id) 
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $query = "INSERT INTO barang (nama_barang, unit_type, isi_renteng, isi_pax, isi_slop, harga_beli, harga_jual, harga_jual_renteng, harga_jual_pcs, stok, owner_id) 
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = mysqli_prepare($conn, $query);
-            mysqli_stmt_bind_param($stmt, "ssiiidddi", $nama_barang, $unit_type, $isi_renteng, $isi_pax, $isi_slop, $harga_beli, $harga_jual, $stok, $owner_id);
+            mysqli_stmt_bind_param($stmt, "ssiiidddddi", $nama_barang, $unit_type, $isi_renteng, $isi_pax, $isi_slop, $harga_beli, $harga_jual, $harga_jual_renteng, $harga_jual_pcs, $stok, $owner_id);
         }
 
         if (mysqli_stmt_execute($stmt)) {
@@ -188,6 +190,20 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
                             value="<?php echo $edit_data['harga_jual'] ?? ''; ?>"
                             class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500 shadow-sm">
                     </div>
+
+                    <div>
+                        <label class="block text-gray-700 font-medium mb-2">Harga Jual per Renteng (opsional)</label>
+                        <input type="number" name="harga_jual_renteng" step="0.01" placeholder="Biarkan kosong jika sama"
+                            value="<?php echo isset($edit_data['harga_jual_renteng']) ? $edit_data['harga_jual_renteng'] : ''; ?>"
+                            class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500 shadow-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-gray-700 font-medium mb-2">Harga Jual per Pcs (opsional)</label>
+                        <input type="number" name="harga_jual_pcs" step="0.01" placeholder="Biarkan kosong jika sama"
+                            value="<?php echo isset($edit_data['harga_jual_pcs']) ? $edit_data['harga_jual_pcs'] : ''; ?>"
+                            class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500 shadow-sm">
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
@@ -277,6 +293,8 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
                             <th class="px-4 py-3 text-center">Satuan</th>
                             <th class="px-4 py-3 text-right">Harga Beli</th>
                             <th class="px-4 py-3 text-right">Harga Jual</th>
+                            <th class="px-4 py-3 text-right">Harga Renteng</th>
+                            <th class="px-4 py-3 text-right">Harga Pcs</th>
                             <th class="px-4 py-3 text-center">Stok</th>
                             <th class="px-4 py-3 text-center">Aksi</th>
                         </tr>
@@ -299,6 +317,12 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
                                     <?php echo ($row['harga_beli'] ?? 0) > 0 ? formatRupiah($row['harga_beli']) : '-'; ?>
                                 </td>
                                 <td class="px-4 py-3 text-right"><?php echo formatRupiah($row['harga_jual']); ?></td>
+                                <td class="px-4 py-3 text-right">
+                                    <?php echo ($row['harga_jual_renteng'] ?? 0) > 0 ? formatRupiah($row['harga_jual_renteng']) : '-'; ?>
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <?php echo ($row['harga_jual_pcs'] ?? 0) > 0 ? formatRupiah($row['harga_jual_pcs']) : '-'; ?>
+                                </td>
                                 <td class="px-4 py-3 text-center">
                                     <span class="<?php echo $row['stok'] < 10 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'; ?> px-3 py-1 rounded-full text-sm font-medium inline-block">
                                         <?php echo $row['unit_type'] === 'kg' ? $row['stok'] . ' kg' : $row['stok'] . ' pcs'; ?>

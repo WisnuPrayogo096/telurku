@@ -44,10 +44,33 @@ function ensureBarangSchema($conn)
     if (!isset($columns['isi_slop'])) {
         $alterParts[] = "ADD COLUMN isi_slop INT NOT NULL DEFAULT 0 AFTER isi_pax";
     }
+    if (!isset($columns['harga_jual_renteng'])) {
+        $alterParts[] = "ADD COLUMN harga_jual_renteng DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER harga_jual";
+    }
+    if (!isset($columns['harga_jual_pcs'])) {
+        $alterParts[] = "ADD COLUMN harga_jual_pcs DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER harga_jual_renteng";
+    }
 
     if ($alterParts) {
         // Jalankan satu ALTER TABLE untuk semua kolom baru.
         mysqli_query($conn, "ALTER TABLE barang " . implode(', ', $alterParts));
+    }
+
+    // Pastikan tabel detail_penjualan memiliki kolom unit
+    $detail_columns = [];
+    if ($result = mysqli_query($conn, "SHOW COLUMNS FROM detail_penjualan")) {
+        while ($row = mysqli_fetch_assoc($result)) {
+            $detail_columns[$row['Field']] = $row;
+        }
+    }
+
+    $detail_alter = [];
+    if (!isset($detail_columns['unit'])) {
+        $detail_alter[] = "ADD COLUMN unit ENUM('renteng','pcs') NOT NULL DEFAULT 'pcs' AFTER jumlah";
+    }
+
+    if ($detail_alter) {
+        mysqli_query($conn, "ALTER TABLE detail_penjualan " . implode(', ', $detail_alter));
     }
 }
 

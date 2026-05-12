@@ -2,11 +2,11 @@
 require_once 'config.php';
 requireLogin();
 
-$user_id = $_SESSION['user_id'];
+$user_id = (int)$_SESSION['user_id'];
 $role = $_SESSION['role'];
 
-// Filter
-$bulan = $_GET['bulan'] ?? date('Y-m');
+// Filter (escape untuk prevent SQL injection)
+$bulan = mysqli_real_escape_string($conn, $_GET['bulan'] ?? date('Y-m'));
 
 // Query transaksi QRIS
 $query = "SELECT 

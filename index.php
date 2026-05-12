@@ -3,7 +3,7 @@ require_once 'config.php';
 requireLogin();
 
 // Hitung statistik
-$user_id = $_SESSION['user_id'];
+$user_id = (int)$_SESSION['user_id'];
 $role = $_SESSION['role'];
 
 // Total penjualan hari ini
@@ -26,6 +26,58 @@ if ($role == 'anak') {
 }
 $result_stok = mysqli_query($conn, $query_stok);
 $total_stok = mysqli_fetch_assoc($result_stok)['total'] ?? 0;
+
+// Total Keuntungan Hari Ini
+$query_detail_today = "SELECT dp.unit, dp.jumlah, dp.subtotal, b.harga_beli, b.isi_renteng, b.isi_pax, b.isi_slop, b.unit_type
+                       FROM penjualan p 
+                       JOIN detail_penjualan dp ON p.id = dp.penjualan_id 
+                       JOIN barang b ON dp.barang_id = b.id 
+                       WHERE p.tanggal = '$today'";
+if ($role != 'anak') {
+    $query_detail_today .= " AND dp.owner_id = $user_id";
+}
+$result_detail_today = mysqli_query($conn, $query_detail_today);
+$total_modal_today = 0;
+$total_pendapatan_today = 0; // Hanya pendapatan barang milik user tsb
+
+while ($row = mysqli_fetch_assoc($result_detail_today)) {
+    $total_pendapatan_today += $row['subtotal'];
+    $modal_satuan = $row['harga_beli'];
+    $jumlah_pcs = $row['jumlah'];
+    
+    if ($row['unit_type'] === 'gram' || $row['unit'] === 'gram' || $row['unit'] === 'gram (custom)') {
+        $total_modal_today += (($modal_satuan / 1000) * $row['jumlah']);
+        continue;
+    }
+
+    if ($row['unit'] === 'renteng') {
+        $jumlah_pcs = $row['jumlah'] * max($row['isi_renteng'], 1);
+    } elseif ($row['unit'] === 'pax') {
+        $jumlah_pcs = $row['jumlah'] * max($row['isi_pax'], 1);
+    } elseif ($row['unit'] === 'slop') {
+        $jumlah_pcs = $row['jumlah'] * max($row['isi_slop'], 1);
+    }
+    
+    $total_modal_today += ($modal_satuan * $jumlah_pcs);
+}
+$total_keuntungan_today = max($total_pendapatan_today - $total_modal_today, 0);
+
+// Aset Beli (Total Harga Barang Masuk) & Aset Jual (Total Omset Potensial)
+if ($role == 'anak') {
+    $query_aset = "SELECT 
+                   SUM(CASE WHEN unit_type = 'gram' THEN (stok / 1000) * harga_beli ELSE stok * harga_beli END) as aset_beli,
+                   SUM(CASE WHEN unit_type = 'gram' THEN (stok / 1000) * harga_jual ELSE stok * harga_jual END) as aset_jual
+                   FROM barang";
+} else {
+    $query_aset = "SELECT
+                   SUM(CASE WHEN unit_type = 'gram' THEN (stok / 1000) * harga_beli ELSE stok * harga_beli END) as aset_beli,
+                   SUM(CASE WHEN unit_type = 'gram' THEN (stok / 1000) * harga_jual ELSE stok * harga_jual END) as aset_jual
+                   FROM barang WHERE owner_id = $user_id";
+}
+$result_aset = mysqli_query($conn, $query_aset);
+$row_aset = mysqli_fetch_assoc($result_aset);
+$aset_beli = $row_aset['aset_beli'] ?? 0;
+$aset_jual = $row_aset['aset_jual'] ?? 0;
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -55,45 +107,63 @@ $total_stok = mysqli_fetch_assoc($result_stok)['total'] ?? 0;
 
     <div class="container mx-auto p-4">
         <!-- Statistik -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-gray-600 text-sm mb-2">Penjualan Hari Ini</h3>
-                <p class="text-2xl font-bold text-blue-600"><?php echo formatRupiah($total_today); ?></p>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
+                <h3 class="text-gray-600 text-sm font-semibold mb-1">Penjualan Hari Ini</h3>
+                <p class="text-2xl font-bold text-gray-800"><?php echo formatRupiah($total_today); ?></p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-gray-600 text-sm mb-2">Penjualan Bulan Ini</h3>
-                <p class="text-2xl font-bold text-green-600"><?php echo formatRupiah($total_month); ?></p>
+            <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
+                <h3 class="text-gray-600 text-sm font-semibold mb-1">Keuntungan Hari Ini</h3>
+                <p class="text-2xl font-bold text-gray-800"><?php echo formatRupiah($total_keuntungan_today); ?></p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-gray-600 text-sm mb-2">Jumlah Item Stok</h3>
-                <p class="text-2xl font-bold text-purple-600"><?php echo $total_stok; ?> Item</p>
+            <div class="bg-white rounded-lg shadow p-6 border-l-4 border-purple-500">
+                <h3 class="text-gray-600 text-sm font-semibold mb-1">Jumlah Item Stok</h3>
+                <p class="text-2xl font-bold text-gray-800"><?php echo $total_stok; ?> Item</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6 border-l-4 border-orange-500">
+                <h3 class="text-gray-600 text-sm font-semibold mb-1">Penjualan Bulan Ini</h3>
+                <p class="text-2xl font-bold text-gray-800"><?php echo formatRupiah($total_month); ?></p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6 border-l-4 border-red-500">
+                <h3 class="text-gray-600 text-sm font-semibold mb-1">Total Aset (Harga Beli)</h3>
+                <p class="text-2xl font-bold text-gray-800" title="Total Modal Barang Saat Ini"><?php echo formatRupiah($aset_beli); ?></p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6 border-l-4 border-indigo-500">
+                <h3 class="text-gray-600 text-sm font-semibold mb-1">Total Potensi Omset (Harga Jual)</h3>
+                <p class="text-2xl font-bold text-gray-800" title="Total Nilai Jual Barang Saat Ini"><?php echo formatRupiah($aset_jual); ?></p>
             </div>
         </div>
 
         <!-- Menu Utama -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <a href="barang" class="bg-white rounded-lg shadow p-8 hover:shadow-lg transition text-center">
-                <div class="text-4xl mb-4 text-blue-600"><i class="ph ph-package"></i></div>
-                <h2 class="text-xl font-bold text-gray-800 mb-2">Data Barang</h2>
-                <p class="text-gray-600">Kelola stok barang</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <a href="barang" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition text-center group border border-transparent hover:border-blue-200">
+                <div class="text-4xl mb-3 text-blue-600 group-hover:scale-110 transition-transform"><i class="ph ph-package"></i></div>
+                <h2 class="text-lg font-bold text-gray-800 mb-1">Data Barang</h2>
+                <p class="text-sm text-gray-500">Kelola master stok barang</p>
             </a>
 
-            <a href="penjualan" class="bg-white rounded-lg shadow p-8 hover:shadow-lg transition text-center">
-                <div class="text-4xl mb-4 text-green-600"><i class="ph ph-hand-coins"></i></div>
-                <h2 class="text-xl font-bold text-gray-800 mb-2">Transaksi Penjualan</h2>
-                <p class="text-gray-600">Catat penjualan baru</p>
+            <a href="stok_masuk" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition text-center group border border-transparent hover:border-green-200">
+                <div class="text-4xl mb-3 text-green-600 group-hover:scale-110 transition-transform"><i class="ph ph-archive-box"></i></div>
+                <h2 class="text-lg font-bold text-gray-800 mb-1">Stok Masuk (Restock)</h2>
+                <p class="text-sm text-gray-500">Tambah stok & riwayat masuk</p>
             </a>
 
-            <a href="laporan" class="bg-white rounded-lg shadow p-8 hover:shadow-lg transition text-center">
-                <div class="text-4xl mb-4 text-purple-600"><i class="ph ph-chart-line"></i></div>
-                <h2 class="text-xl font-bold text-gray-800 mb-2">Laporan Penjualan</h2>
-                <p class="text-gray-600">Lihat rekapan penjualan</p>
+            <a href="penjualan" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition text-center group border border-transparent hover:border-emerald-200">
+                <div class="text-4xl mb-3 text-emerald-600 group-hover:scale-110 transition-transform"><i class="ph ph-hand-coins"></i></div>
+                <h2 class="text-lg font-bold text-gray-800 mb-1">Kasir Penjualan</h2>
+                <p class="text-sm text-gray-500">Catat transaksi penjualan</p>
             </a>
 
-            <a href="laporan_qris" class="bg-white rounded-lg shadow p-8 hover:shadow-lg transition text-center">
-                <div class="text-4xl mb-4 text-orange-500"><i class="ph ph-device-mobile"></i></div>
-                <h2 class="text-xl font-bold text-gray-800 mb-2">Laporan QRIS</h2>
-                <p class="text-gray-600">Rekapan pembayaran QRIS</p>
+            <a href="laporan" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition text-center group border border-transparent hover:border-purple-200">
+                <div class="text-4xl mb-3 text-purple-600 group-hover:scale-110 transition-transform"><i class="ph ph-chart-line"></i></div>
+                <h2 class="text-lg font-bold text-gray-800 mb-1">Laporan Penjualan</h2>
+                <p class="text-sm text-gray-500">Lihat rekapan & keuntungan</p>
+            </a>
+
+            <a href="analisis_stok" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition text-center group border border-transparent hover:border-orange-200">
+                <div class="text-4xl mb-3 text-orange-500 group-hover:scale-110 transition-transform"><i class="ph ph-trend-up"></i></div>
+                <h2 class="text-lg font-bold text-gray-800 mb-1">Analisis Stok</h2>
+                <p class="text-sm text-gray-500">Pantau barang laris & habis</p>
             </a>
         </div>
     </div>

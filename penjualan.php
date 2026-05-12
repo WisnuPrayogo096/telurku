@@ -8,7 +8,7 @@ $error = '';
 // Proses Penjualan
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
     $tanggal = $_POST['tanggal'];
-    $metode_bayar = $_POST['metode_bayar'];
+    $metode_bayar = 'tunai';
     $barang_ids = $_POST['barang_id'];
     $units = $_POST['unit'];
     $jumlahs = $_POST['jumlah'];
@@ -25,6 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
         if ($jumlah <= 0) continue;
 
         // Ambil data barang
+        $barang_id = (int)$barang_id;
         $query = "SELECT * FROM barang WHERE id = $barang_id";
         $result = mysqli_query($conn, $query);
         $barang = mysqli_fetch_assoc($result);
@@ -36,16 +37,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
 
         // Hitung harga berdasarkan unit
         $harga_satuan = $barang['harga_jual'];
+        $jumlah_pcs = $jumlah;
+
         if ($unit === 'renteng' && ($barang['harga_jual_renteng'] ?? 0) > 0) {
             $harga_satuan = $barang['harga_jual_renteng'];
+            $jumlah_pcs = $jumlah * ($barang['isi_renteng'] ?? 1);
+        } elseif ($unit === 'renteng') {
+            $isi = max((int)($barang['isi_renteng'] ?? 1), 1);
+            $harga_satuan = (($barang['harga_jual_pcs'] ?? 0) > 0 ? $barang['harga_jual_pcs'] : $barang['harga_jual']) * $isi;
+            $jumlah_pcs = $jumlah * $isi;
+        } elseif ($unit === 'pax') {
+            $isi = max((int)($barang['isi_pax'] ?? 1), 1);
+            $harga_satuan = (($barang['harga_jual_pcs'] ?? 0) > 0 ? $barang['harga_jual_pcs'] : $barang['harga_jual']) * $isi;
+            $jumlah_pcs = $jumlah * $isi;
+        } elseif ($unit === 'slop') {
+            $isi = max((int)($barang['isi_slop'] ?? 1), 1);
+            $harga_satuan = (($barang['harga_jual_pcs'] ?? 0) > 0 ? $barang['harga_jual_pcs'] : $barang['harga_jual']) * $isi;
+            $jumlah_pcs = $jumlah * $isi;
         } elseif ($unit === 'pcs' && ($barang['harga_jual_pcs'] ?? 0) > 0) {
             $harga_satuan = $barang['harga_jual_pcs'];
-        }
-
-        // Hitung jumlah dalam pcs untuk cek stok
-        $jumlah_pcs = $jumlah;
-        if ($unit === 'renteng') {
-            $jumlah_pcs = $jumlah * ($barang['isi_renteng'] ?? 1);
+        } elseif ($unit === 'gram' || $unit === 'gram (custom)') {
+            $harga_satuan = $barang['harga_jual'] / 1000;
+            $jumlah_pcs = $jumlah;
+            $unit = 'gram';
+        } elseif ($unit === '1 kg') {
+            $harga_satuan = $barang['harga_jual'];
+            $jumlah_pcs = $jumlah * 1000;
+            $unit = 'gram';
         }
 
         if ($barang['stok'] < $jumlah_pcs) {
@@ -214,11 +232,9 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
 
                             <div>
                                 <label class="block text-gray-700 text-sm md:text-base font-medium mb-1">Metode Pembayaran</label>
-                                <select name="metode_bayar" id="metodeBayar" required
-                                    class="w-full px-3 py-2 md:px-4 md:py-2 border rounded-lg focus:outline-none focus:border-blue-500 text-sm md:text-base">
-                                    <option value="tunai">Tunai</option>
-                                    <option value="qris">QRIS</option>
-                                </select>
+                                <input type="text" value="Tunai" readonly
+                                    class="w-full px-3 py-2 md:px-4 md:py-2 border rounded-lg bg-gray-100 text-gray-700 focus:outline-none text-sm md:text-base">
+                                <input type="hidden" name="metode_bayar" id="metodeBayar" value="tunai">
                             </div>
                         </div>
 
@@ -241,7 +257,7 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
                                                 data-isi-renteng="<?php echo $barang['isi_renteng'] ?? 0; ?>"
                                                 data-owner="<?php echo $barang['owner_nama']; ?>"
                                                 data-nama="<?php echo htmlspecialchars($barang['nama_barang']); ?>">
-                                                <?php echo $barang['nama_barang']; ?> (<?php echo $barang['owner_nama']; ?>) - Stok: <?php echo $barang['unit_type'] === 'kg' ? $barang['stok'] . ' kg' : $barang['stok'] . ' pcs'; ?> - <?php echo formatRupiah($barang['harga_jual']); ?>
+                                                <?php echo $barang['nama_barang']; ?> - Stok: <?php echo ($barang['unit_type'] === 'renteng' && (int)$barang['isi_renteng'] > 0) ? formatQty($barang['stok'] / max((int)$barang['isi_renteng'], 1)) . ' renteng' : formatQty($barang['stok']) . ' ' . unitLabel($barang['unit_type']); ?> - <?php echo formatRupiah($barang['harga_jual']); ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
@@ -299,8 +315,8 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
                                     <span class="text-lg font-semibold text-green-600" id="kembalianDisplay">Rp 0</span>
                                 </div>
                             </div>
-                            <p class="text-xs text-gray-500">
-                                Untuk pembayaran QRIS, isi item saja lalu proses penjualan. Tunai & kembalian hanya untuk metode tunai.
+                            <p class="text-xs text-gray-500 mt-2">
+                                Kosongkan Tunai Diterima jika pelanggan membayar dengan uang pas.
                             </p>
                         </div>
 
@@ -334,6 +350,16 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
                     }
                 }
             });
+
+            // Fokus otomatis ke pencarian barang saat halaman pertama kali dibuka
+            setTimeout(function() {
+                $('#pilihBarang').select2('open');
+            }, 100);
+
+            // Memastikan kursor langsung siap dipakai mengetik ketika dropdown Select2 terbuka
+            $('#pilihBarang').on('select2:open', function (e) {
+                document.querySelector('.select2-search__field').focus();
+            });
         });
 
         const rupiahFormatter = new Intl.NumberFormat('id-ID', {
@@ -355,10 +381,15 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
             const isiRenteng = parseInt(row.dataset.isiRenteng || 0);
 
             let harga = hargaDefault;
+            let multiplier = 1;
             if (selectedUnit === 'renteng' && hargaRenteng > 0) {
                 harga = hargaRenteng;
+            } else if (selectedUnit === 'renteng') {
+                harga = (hargaPcs > 0 ? hargaPcs : hargaDefault) * Math.max(isiRenteng, 1);
             } else if (selectedUnit === 'pcs' && hargaPcs > 0) {
                 harga = hargaPcs;
+            } else if (selectedUnit === 'gram' || selectedUnit === 'gram (custom)') {
+                multiplier = 0.001;
             }
 
             const qtyInput = row.querySelector('.jumlah-input');
@@ -369,20 +400,27 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
             const qty = parseFloat(qtyInput?.value || 0);
 
             if (unitLabel) {
-                unitLabel.textContent = selectedUnit === 'renteng' ? 'renteng' : 'pcs';
+                if (selectedUnit === 'renteng') unitLabel.textContent = 'renteng';
+                else if (selectedUnit === 'gram' || selectedUnit === 'gram (custom)' || selectedUnit === '1 kg') unitLabel.textContent = 'gram';
+                else unitLabel.textContent = 'pcs';
             }
 
             if (qtyInput) {
-                qtyInput.step = '1';
-                qtyInput.min = '1';
+                if (selectedUnit === 'gram' || selectedUnit === 'gram (custom)') {
+                    qtyInput.step = '1';
+                    qtyInput.min = '1';
+                } else {
+                    qtyInput.step = '1';
+                    qtyInput.min = '1';
+                }
                 qtyInput.placeholder = 'Qty';
             }
 
             if (hargaSpan) {
-                hargaSpan.textContent = formatRupiahJs(harga);
+                hargaSpan.textContent = formatRupiahJs(harga * multiplier);
             }
 
-            const subtotal = harga * qty;
+            const subtotal = harga * multiplier * qty;
             if (subtotalSpan) {
                 subtotalSpan.textContent = formatRupiahJs(subtotal);
             }
@@ -416,24 +454,19 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
         }
 
         function updateKembalian() {
-            const metode = document.getElementById('metodeBayar')?.value || 'tunai';
-            const tunaiSection = document.getElementById('tunaiSection');
             const tunaiInput = document.getElementById('tunaiDiterima');
             const kembalianDisplay = document.getElementById('kembalianDisplay');
             const total = parseFloat(document.getElementById('totalBelanjaInput')?.value || 0);
 
-            if (metode === 'tunai') {
-                tunaiSection?.classList.remove('hidden');
-                const tunai = parseFloat(tunaiInput?.value || 0);
-                const kembalian = Math.max(tunai - total, 0);
-                if (kembalianDisplay) {
-                    kembalianDisplay.textContent = formatRupiahJs(kembalian);
-                }
-            } else {
-                tunaiSection?.classList.add('hidden');
-                if (kembalianDisplay) {
-                    kembalianDisplay.textContent = formatRupiahJs(0);
-                }
+            let tunai = parseFloat(tunaiInput?.value);
+            // Jika kosong (isNaN), anggap uang pas (sama dengan total)
+            if (isNaN(tunai) || tunaiInput.value.trim() === '') {
+                tunai = total;
+            }
+
+            const kembalian = Math.max(tunai - total, 0);
+            if (kembalianDisplay) {
+                kembalianDisplay.textContent = formatRupiahJs(kembalian);
             }
         }
 
@@ -451,18 +484,23 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
             row.dataset.isiRenteng = data.isiRenteng;
             row.dataset.nama = data.nama;
 
-            const unitOptions = data.isiRenteng > 0 ? `
-                <option value="pcs">Per Pcs</option>
-                <option value="renteng">Per Renteng (${data.isiRenteng} pcs)</option>
-            ` : `
-                <option value="pcs">Per Pcs</option>
-            `;
+            let unitOptions = '';
+            if (data.unit === 'gram' || data.unit === 'kg') {
+                unitOptions = `
+                    <option value="gram">Gram</option>
+                `;
+            } else {
+                unitOptions = `<option value="pcs">Per Pcs</option>`;
+                if (data.unit === 'renteng' && data.isiRenteng > 0) {
+                    unitOptions += `<option value="renteng">Per Renteng (${data.isiRenteng} pcs)</option>`;
+                }
+            }
 
             row.innerHTML = `
                 <input type="hidden" name="barang_id[]" value="${data.id}">
                 <div class="md:col-span-4">
                     <div class="text-sm font-semibold text-gray-800">${data.nama}</div>
-                    <div class="text-xs text-gray-500">${data.owner} · Stok: ${data.stok} ${data.unit === 'kg' ? 'kg' : 'pcs'}</div>
+                    <div class="text-xs text-gray-500">Stok: ${data.stokLabel}</div>
                 </div>
 
                 <div class="md:col-span-2">
@@ -473,11 +511,11 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
 
                 <div class="md:col-span-2 flex items-center gap-2">
                     <div class="flex-1">
-                        <input type="number" name="jumlah[]" value="${data.unit === 'kg' ? '0.5' : '1'}"
+                        <input type="number" name="jumlah[]" value="1"
                             class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500 text-sm jumlah-input"
                             step="1" min="1" placeholder="Qty">
                     </div>
-                    <span class="hidden md:inline text-xs text-gray-500 unit-label">pcs</span>
+                    <span class="hidden md:inline text-xs text-gray-500 unit-label">${data.unit === 'gram' || data.unit === 'kg' ? 'gram' : 'pcs'}</span>
                 </div>
 
                 <div class="md:col-span-2 md:text-right">
@@ -550,6 +588,7 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
                 nama: opt.dataset.nama,
                 owner: opt.dataset.owner,
                 stok: opt.dataset.stok,
+                stokLabel: opt.textContent.split('Stok: ')[1]?.split(' - ')[0] || opt.dataset.stok,
                 unit: opt.dataset.unit,
                 harga: opt.dataset.harga,
                 hargaRenteng: opt.dataset.hargaRenteng,

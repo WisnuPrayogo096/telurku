@@ -20,7 +20,7 @@ mysqli_set_charset($conn, "utf8");
 
 /**
  * Pastikan skema tabel barang memiliki kolom pendukung satuan.
- * Ini auto-migrasi ringan agar fitur satuan (pcs/kg) & pack size bisa dipakai.
+ * Ini auto-migrasi ringan agar fitur satuan (renteng/gram/pcs) bisa dipakai.
  */
 function ensureBarangSchema($conn)
 {
@@ -33,7 +33,7 @@ function ensureBarangSchema($conn)
 
     $alterParts = [];
     if (!isset($columns['unit_type'])) {
-        $alterParts[] = "ADD COLUMN unit_type ENUM('pcs','kg') NOT NULL DEFAULT 'pcs' AFTER nama_barang";
+        $alterParts[] = "ADD COLUMN unit_type ENUM('renteng','gram','pcs') NOT NULL DEFAULT 'pcs' AFTER nama_barang";
     }
     if (!isset($columns['isi_renteng'])) {
         $alterParts[] = "ADD COLUMN isi_renteng INT NOT NULL DEFAULT 0 AFTER unit_type";
@@ -56,6 +56,13 @@ function ensureBarangSchema($conn)
         mysqli_query($conn, "ALTER TABLE barang " . implode(', ', $alterParts));
     }
 
+    if (isset($columns['unit_type']) && strpos($columns['unit_type']['Type'], "'renteng'") === false) {
+        mysqli_query($conn, "ALTER TABLE barang MODIFY COLUMN unit_type ENUM('pcs','kg','gram','renteng') NOT NULL DEFAULT 'pcs'");
+        mysqli_query($conn, "UPDATE barang SET stok = stok * 1000, unit_type = 'gram' WHERE unit_type = 'kg'");
+        mysqli_query($conn, "UPDATE barang SET unit_type = 'renteng' WHERE unit_type = 'pcs' AND isi_renteng > 0");
+        mysqli_query($conn, "ALTER TABLE barang MODIFY COLUMN unit_type ENUM('renteng','gram','pcs') NOT NULL DEFAULT 'pcs'");
+    }
+
     // Pastikan tabel detail_penjualan memiliki kolom unit
     $detail_columns = [];
     if ($result = mysqli_query($conn, "SHOW COLUMNS FROM detail_penjualan")) {
@@ -66,12 +73,32 @@ function ensureBarangSchema($conn)
 
     $detail_alter = [];
     if (!isset($detail_columns['unit'])) {
-        $detail_alter[] = "ADD COLUMN unit ENUM('renteng','pcs') NOT NULL DEFAULT 'pcs' AFTER jumlah";
+        $detail_alter[] = "ADD COLUMN unit VARCHAR(20) NOT NULL DEFAULT 'pcs' AFTER jumlah";
+    } else {
+        // Change from ENUM to VARCHAR if needed
+        if (strpos($detail_columns['unit']['Type'], 'enum') !== false) {
+            $detail_alter[] = "MODIFY COLUMN unit VARCHAR(20) NOT NULL DEFAULT 'pcs'";
+        }
     }
 
     if ($detail_alter) {
         mysqli_query($conn, "ALTER TABLE detail_penjualan " . implode(', ', $detail_alter));
     }
+
+    // Buat tabel stok_masuk jika belum ada
+    $sql_stok_masuk = "CREATE TABLE IF NOT EXISTS stok_masuk (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        tanggal DATE NOT NULL,
+        barang_id INT NOT NULL,
+        jumlah_tambah DECIMAL(10,2) NOT NULL DEFAULT 0,
+        harga_beli DECIMAL(10,2) NOT NULL DEFAULT 0,
+        harga_jual DECIMAL(10,2) NOT NULL DEFAULT 0,
+        owner_id INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (barang_id) REFERENCES barang(id) ON DELETE CASCADE,
+        FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+    )";
+    mysqli_query($conn, $sql_stok_masuk);
 }
 
 // Jalankan penyesuaian skema (aman jika sudah pernah dijalankan).
@@ -112,9 +139,40 @@ function formatRupiah($angka)
     return "Rp " . number_format($angka, 0, ',', '.');
 }
 
+function unitLabel($unit)
+{
+    if ($unit === 'gram' || $unit === 'kg') {
+        return 'gram';
+    }
+    if ($unit === 'renteng') {
+        return 'renteng';
+    }
+    return 'pcs';
+}
+
+function unitTypeLabel($unit)
+{
+    if ($unit === 'renteng') {
+        return 'Ecer & Renteng/Slop';
+    }
+    if ($unit === 'gram' || $unit === 'kg') {
+        return 'Gram / Timbang';
+    }
+    return 'PCS Kemasan';
+}
+
+function formatQty($qty)
+{
+    return rtrim(rtrim(number_format((float)$qty, 3, ',', '.'), '0'), ',');
+}
+
 // Format tanggal
 function formatTanggal($tanggal)
 {
+    if (empty($tanggal)) {
+        return '-';
+    }
+
     $bulan = [
         1 => 'Januari',
         'Februari',
@@ -130,5 +188,16 @@ function formatTanggal($tanggal)
         'Desember'
     ];
     $split = explode('-', $tanggal);
-    return $split[2] . ' ' . $bulan[(int)$split[1]] . ' ' . $split[0];
+
+    // Pastikan format Y-m-d valid (3 bagian)
+    if (count($split) < 3) {
+        return $tanggal; // Kembalikan apa adanya jika format tidak sesuai
+    }
+
+    $bulanIndex = (int)$split[1];
+    if ($bulanIndex < 1 || $bulanIndex > 12) {
+        return $tanggal;
+    }
+
+    return $split[2] . ' ' . $bulan[$bulanIndex] . ' ' . $split[0];
 }

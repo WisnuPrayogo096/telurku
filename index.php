@@ -44,7 +44,7 @@ while ($row = mysqli_fetch_assoc($result_detail_today)) {
     $total_pendapatan_today += $row['subtotal'];
     $modal_satuan = $row['harga_beli'];
     $jumlah_pcs = $row['jumlah'];
-    
+
     if ($row['unit_type'] === 'gram' || $row['unit'] === 'gram' || $row['unit'] === 'gram (custom)') {
         $total_modal_today += (($modal_satuan / 1000) * $row['jumlah']);
         continue;
@@ -57,7 +57,7 @@ while ($row = mysqli_fetch_assoc($result_detail_today)) {
     } elseif ($row['unit'] === 'slop') {
         $jumlah_pcs = $row['jumlah'] * max($row['isi_slop'], 1);
     }
-    
+
     $total_modal_today += ($modal_satuan * $jumlah_pcs);
 }
 $total_keuntungan_today = max($total_pendapatan_today - $total_modal_today, 0);
@@ -85,7 +85,13 @@ $aset_jual = $row_aset['aset_jual'] ?? 0;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - TELURKU</title>
+    <title>Dashboard - Toko Rahmat Jaya</title>
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/16×16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/32×32.png">
+    <link rel="icon" type="image/png" sizes="48x48" href="icons/48×48.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/192×192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icons/512×512.png">
+    <link rel="apple-touch-icon" href="icons/180×180.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
@@ -95,7 +101,7 @@ $aset_jual = $row_aset['aset_jual'] ?? 0;
     <!-- Navbar -->
     <nav class="bg-blue-600 text-white p-4">
         <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-bold">TELURKU</h1>
+            <h1 class="text-xl font-bold">Toko Rahmat Jaya</h1>
             <div class="flex items-center gap-4">
                 <span class="text-sm">Halo, <?php echo $_SESSION['nama']; ?></span>
                 <button type="button" id="btnLogout" class="bg-red-500 px-4 py-2 rounded hover:bg-red-600">
@@ -169,22 +175,22 @@ $aset_jual = $row_aset['aset_jual'] ?? 0;
     </div>
 
     <script>
-    // SweetAlert2: Konfirmasi logout
-    const btnLogout = document.getElementById('btnLogout');
-    btnLogout?.addEventListener('click', async () => {
-        const result = await Swal.fire({
-            title: 'Keluar dari aplikasi?',
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, keluar',
-            cancelButtonText: 'Batal',
-            confirmButtonColor: '#ef4444',
-            cancelButtonColor: '#6b7280'
+        // SweetAlert2: Konfirmasi logout
+        const btnLogout = document.getElementById('btnLogout');
+        btnLogout?.addEventListener('click', async () => {
+            const result = await Swal.fire({
+                title: 'Keluar dari aplikasi?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, keluar',
+                cancelButtonText: 'Batal',
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#6b7280'
+            });
+            if (result.isConfirmed) {
+                window.location.href = 'logout';
+            }
         });
-        if (result.isConfirmed) {
-            window.location.href = 'logout';
-        }
-    });
     </script>
 </body>
 

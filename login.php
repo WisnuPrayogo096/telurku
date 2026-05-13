@@ -35,14 +35,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - TELURKU</title>
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/16×16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/32×32.png">
+    <link rel="icon" type="image/png" sizes="48x48" href="icons/48×48.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/192×192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icons/512×512.png">
+    <link rel="apple-touch-icon" href="icons/180×180.png">
+    <title>Login - Toko Rahmat Jaya</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
 <body class="bg-gray-100">
     <div class="min-h-screen flex items-center justify-center p-4">
         <div class="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
-            <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">TELURKU</h1>
+            <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Toko Rahmat Jaya</h1>
 
             <?php if ($error): ?>
                 <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">

@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_stok'])) {
     $barang_id = (int)$_POST['barang_id'];
     $tanggal = $_POST['tanggal'];
     $jumlah_tambah = (float)$_POST['jumlah_tambah'];
-    
+
     // Opsional harga beli/jual baru
     $harga_beli_baru = $_POST['harga_beli_baru'] !== '' ? (float)$_POST['harga_beli_baru'] : -1;
     $harga_jual_baru = $_POST['harga_jual_baru'] !== '' ? (float)$_POST['harga_jual_baru'] : -1;
@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_stok'])) {
 // Proses Hapus Stok Masuk
 if (isset($_GET['delete'])) {
     $id = (int)$_GET['delete'];
-    
+
     // Cek ownership
     $check = mysqli_query($conn, "SELECT sm.*, b.owner_id FROM stok_masuk sm JOIN barang b ON sm.barang_id = b.id WHERE sm.id=$id");
     $sm_data = mysqli_fetch_assoc($check);
@@ -105,7 +105,7 @@ if (isset($_GET['delete'])) {
 
             // Hapus record
             mysqli_query($conn, "DELETE FROM stok_masuk WHERE id=$id");
-            
+
             mysqli_commit($conn);
             $success = 'Data stok masuk berhasil dihapus (stok barang telah disesuaikan kembali)!';
         } catch (Exception $e) {
@@ -146,7 +146,13 @@ $riwayat_result = mysqli_query($conn, $riwayat_query);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stok Masuk - TELURKU</title>
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/16×16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/32×32.png">
+    <link rel="icon" type="image/png" sizes="48x48" href="icons/48×48.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/192×192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icons/512×512.png">
+    <link rel="apple-touch-icon" href="icons/180×180.png">
+    <title>Stok Masuk - Toko Rahmat Jaya</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
@@ -158,11 +164,13 @@ $riwayat_result = mysqli_query($conn, $riwayat_query);
             border-radius: 0.5rem;
             padding: 0.5rem;
         }
+
         .select2-container--default .select2-selection--single .select2-selection__rendered {
             line-height: 26px;
             padding-left: 8px;
             color: #374151;
         }
+
         .select2-container--default .select2-selection--single .select2-selection__arrow {
             height: 40px;
             right: 8px;

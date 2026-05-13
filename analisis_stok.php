@@ -28,13 +28,14 @@ $query_hampir_habis = "SELECT b.*, u.nama as owner_nama
 $result_hampir_habis = mysqli_query($conn, $query_hampir_habis);
 
 // Fungsi Helper Query Penjualan (Fast/Slow Moving)
-function getMovingItems($conn, $where_owner_and, $interval_days, $is_fast, $limit = 10) {
+function getMovingItems($conn, $where_owner_and, $interval_days, $is_fast, $limit = 10)
+{
     // Jika fast moving: barang yang terjual paling banyak.
     // Jika slow moving: barang yang paling sedikit terjual (termasuk yang 0).
-    
+
     $order_dir = $is_fast ? "DESC" : "ASC";
     $stok_filter = $is_fast ? "" : "AND b.stok > 0";
-    
+
     $query = "SELECT b.nama_barang, b.unit_type, b.stok, u.nama as owner_nama,
               COALESCE(SUM(CASE
                   WHEN p.id IS NULL THEN 0
@@ -54,7 +55,7 @@ function getMovingItems($conn, $where_owner_and, $interval_days, $is_fast, $limi
               GROUP BY b.id
               ORDER BY total_terjual $order_dir, b.nama_barang ASC
               LIMIT $limit";
-              
+
     return mysqli_query($conn, $query);
 }
 
@@ -73,7 +74,13 @@ $slow_bulanan = getMovingItems($conn, $where_owner_and, 30, false);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analisis Stok - TELURKU</title>
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/16×16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/32×32.png">
+    <link rel="icon" type="image/png" sizes="48x48" href="icons/48×48.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/192×192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icons/512×512.png">
+    <link rel="apple-touch-icon" href="icons/180×180.png">
+    <title>Analisis Stok - Toko Rahmat Jaya</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
     <script>
@@ -194,16 +201,16 @@ $slow_bulanan = getMovingItems($conn, $where_owner_and, 30, false);
                                 <?php $has_fast_mingguan = false; ?>
                                 <?php while ($row = mysqli_fetch_assoc($fast_mingguan)): ?>
                                     <?php if ($row['total_terjual'] > 0): ?>
-                                    <?php $has_fast_mingguan = true; ?>
-                                    <tr class="border-b">
-                                        <td class="px-4 py-3">
-                                            <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
-                                            <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama']); ?></div>
-                                        </td>
-                                        <td class="px-4 py-3 text-right font-bold text-green-600">
-                                            <?php echo formatQty($row['total_terjual']) . ' ' . unitLabel($row['unit_type']); ?>
-                                        </td>
-                                    </tr>
+                                        <?php $has_fast_mingguan = true; ?>
+                                        <tr class="border-b">
+                                            <td class="px-4 py-3">
+                                                <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
+                                                <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama']); ?></div>
+                                            </td>
+                                            <td class="px-4 py-3 text-right font-bold text-green-600">
+                                                <?php echo formatQty($row['total_terjual']) . ' ' . unitLabel($row['unit_type']); ?>
+                                            </td>
+                                        </tr>
                                     <?php endif; ?>
                                 <?php endwhile; ?>
                                 <?php if (!$has_fast_mingguan): ?>
@@ -236,16 +243,16 @@ $slow_bulanan = getMovingItems($conn, $where_owner_and, 30, false);
                                 <?php $has_fast_bulanan = false; ?>
                                 <?php while ($row = mysqli_fetch_assoc($fast_bulanan)): ?>
                                     <?php if ($row['total_terjual'] > 0): ?>
-                                    <?php $has_fast_bulanan = true; ?>
-                                    <tr class="border-b">
-                                        <td class="px-4 py-3">
-                                            <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
-                                            <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama']); ?></div>
-                                        </td>
-                                        <td class="px-4 py-3 text-right font-bold text-blue-600">
-                                            <?php echo formatQty($row['total_terjual']) . ' ' . unitLabel($row['unit_type']); ?>
-                                        </td>
-                                    </tr>
+                                        <?php $has_fast_bulanan = true; ?>
+                                        <tr class="border-b">
+                                            <td class="px-4 py-3">
+                                                <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
+                                                <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama']); ?></div>
+                                            </td>
+                                            <td class="px-4 py-3 text-right font-bold text-blue-600">
+                                                <?php echo formatQty($row['total_terjual']) . ' ' . unitLabel($row['unit_type']); ?>
+                                            </td>
+                                        </tr>
                                     <?php endif; ?>
                                 <?php endwhile; ?>
                                 <?php if (!$has_fast_bulanan): ?>
@@ -345,4 +352,5 @@ $slow_bulanan = getMovingItems($conn, $where_owner_and, 30, false);
 
     </div>
 </body>
+
 </html>

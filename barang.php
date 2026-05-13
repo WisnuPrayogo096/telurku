@@ -124,12 +124,20 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Barang - TELURKU</title>
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/16×16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/32×32.png">
+    <link rel="icon" type="image/png" sizes="48x48" href="icons/48×48.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/192×192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icons/512×512.png">
+    <link rel="apple-touch-icon" href="icons/180×180.png">
+    <title>Data Barang - Toko Rahmat Jaya</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
     <style>
-        .modal-active { overflow: hidden; }
+        .modal-active {
+            overflow: hidden;
+        }
     </style>
 </head>
 
@@ -400,9 +408,11 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
             form.reset();
             document.getElementById('formId').value = '';
             modalTitle.innerHTML = '<i class="ph ph-plus-circle"></i> Tambah Barang';
-            
+
             // Reset stok to 0
-            Object.values(inputs).forEach(el => { if(el) el.value = '0'; });
+            Object.values(inputs).forEach(el => {
+                if (el) el.value = '0';
+            });
             stokFinal.value = '0';
 
             updateVisibility();
@@ -418,7 +428,7 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
         function editBarang(data) {
             form.reset();
             modalTitle.innerHTML = '<i class="ph ph-pencil-simple"></i> Edit Barang';
-            
+
             document.getElementById('formId').value = data.id;
             document.getElementById('nama_barang').value = data.nama_barang;
             unitTypeEl.value = data.unit_type === 'kg' ? 'gram' : data.unit_type;
@@ -429,7 +439,7 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
             document.getElementById('harga_jual').value = data.harga_jual;
             document.getElementById('harga_jual_renteng').value = data.harga_jual_renteng > 0 ? data.harga_jual_renteng : '';
             document.getElementById('harga_jual_pcs').value = data.harga_jual_pcs > 0 ? data.harga_jual_pcs : data.harga_jual;
-            
+
             inputs.isiRenteng.value = data.isi_renteng || 0;
             inputs.isiPax.value = data.isi_pax || 0;
             inputs.isiSlop.value = data.isi_slop || 0;
@@ -449,7 +459,7 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
             }
             inputs.stokPax.value = 0;
             inputs.stokSlop.value = 0;
-            
+
             stokFinal.value = data.stok || 0;
 
             updateVisibility();
@@ -514,7 +524,7 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
         searchInput?.addEventListener('input', function(e) {
             const term = e.target.value.toLowerCase();
             const rows = document.querySelectorAll('.barang-row');
-            
+
             rows.forEach(row => {
                 const nama = row.querySelector('.row-nama').textContent.toLowerCase();
                 if (nama.includes(term)) {

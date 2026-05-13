@@ -104,6 +104,9 @@ $aset_jual = $row_aset['aset_jual'] ?? 0;
             <h1 class="text-xl font-bold">Toko Rahmat Jaya</h1>
             <div class="flex items-center gap-4">
                 <span class="text-sm">Halo, <?php echo $_SESSION['nama']; ?></span>
+                <a href="profil" class="bg-gray-500 px-4 py-2 rounded hover:bg-gray-600 transition">
+                    <i class="ph ph-user inline-block mr-1"></i>Profil
+                </a>
                 <button type="button" id="btnLogout" class="bg-red-500 px-4 py-2 rounded hover:bg-red-600">
                     Keluar
                 </button>

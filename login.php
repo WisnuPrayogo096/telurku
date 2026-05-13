@@ -3,6 +3,11 @@ require_once 'config.php';
 
 $error = '';
 
+// Cek apakah session expired
+if (isset($_GET['expired']) && $_GET['expired'] == 1) {
+    $error = 'Sesi Anda telah expired. Silakan login kembali!';
+}
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = $_POST['username'];
     $password = $_POST['password'];
@@ -19,6 +24,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $_SESSION['username'] = $user['username'];
             $_SESSION['nama'] = $user['nama'];
             $_SESSION['role'] = $user['role'];
+            $_SESSION['login_time'] = time(); // Menyimpan waktu login
+
+            // Update last_login di database untuk persistent session
+            $user_id = $user['id'];
+            $update_query = "UPDATE users SET last_login = NOW() WHERE id = ?";
+            $update_stmt = mysqli_prepare($conn, $update_query);
+            mysqli_stmt_bind_param($update_stmt, "i", $user_id);
+            mysqli_stmt_execute($update_stmt);
+
             header("Location: index");
             exit();
         } else {

@@ -113,7 +113,7 @@ $result = mysqli_query($conn, $query);
                                 <td class="px-4 py-3 text-sm text-gray-600"><?php echo date('d/m/Y H:i', strtotime($row['tanggal'])); ?></td>
                                 <td class="px-4 py-3">
                                     <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
-                                    <div class="text-xs text-gray-500">Pemilik: <?php echo $row['owner_nama']; ?></div>
+                                    <!-- <div class="text-xs text-gray-500">Pemilik: <?php echo $row['owner_nama']; ?></div> -->
                                 </td>
                                 <td class="px-4 py-3 text-center">
                                     <span class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs"><?php echo htmlspecialchars($row['unit']); ?></span>

@@ -137,7 +137,7 @@ $slow_bulanan = getMovingItems($conn, $where_owner_and, 30, false);
                                     <li class="py-3 flex justify-between items-center">
                                         <div>
                                             <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
-                                            <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama'] ?? ''); ?></div>
+                                            <!-- <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama'] ?? ''); ?></div> -->
                                         </div>
                                         <a href="stok_masuk" class="text-xs bg-red-100 text-red-700 px-3 py-1 rounded hover:bg-red-200 transition">Restock</a>
                                     </li>
@@ -162,7 +162,7 @@ $slow_bulanan = getMovingItems($conn, $where_owner_and, 30, false);
                                     <li class="py-3 flex justify-between items-center">
                                         <div>
                                             <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
-                                            <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama'] ?? ''); ?></div>
+                                            <!-- <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama'] ?? ''); ?></div> -->
                                         </div>
                                         <div class="text-sm font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded">
                                             Sisa: <?php echo formatQty($row['stok']) . ' ' . unitLabel($row['unit_type']); ?>
@@ -205,7 +205,7 @@ $slow_bulanan = getMovingItems($conn, $where_owner_and, 30, false);
                                         <tr class="border-b">
                                             <td class="px-4 py-3">
                                                 <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
-                                                <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama']); ?></div>
+                                                <!-- <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama']); ?></div> -->
                                             </td>
                                             <td class="px-4 py-3 text-right font-bold text-green-600">
                                                 <?php echo formatQty($row['total_terjual']) . ' ' . unitLabel($row['unit_type']); ?>
@@ -247,7 +247,7 @@ $slow_bulanan = getMovingItems($conn, $where_owner_and, 30, false);
                                         <tr class="border-b">
                                             <td class="px-4 py-3">
                                                 <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
-                                                <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama']); ?></div>
+                                                <!-- <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama']); ?></div> -->
                                             </td>
                                             <td class="px-4 py-3 text-right font-bold text-blue-600">
                                                 <?php echo formatQty($row['total_terjual']) . ' ' . unitLabel($row['unit_type']); ?>
@@ -296,7 +296,7 @@ $slow_bulanan = getMovingItems($conn, $where_owner_and, 30, false);
                                     <tr class="border-b">
                                         <td class="px-4 py-3">
                                             <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
-                                            <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama']); ?></div>
+                                            <!-- <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama']); ?></div> -->
                                         </td>
                                         <td class="px-4 py-3 text-center text-gray-600">
                                             <?php echo formatQty($row['stok']) . ' ' . unitLabel($row['unit_type']); ?>
@@ -333,7 +333,7 @@ $slow_bulanan = getMovingItems($conn, $where_owner_and, 30, false);
                                     <tr class="border-b">
                                         <td class="px-4 py-3">
                                             <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
-                                            <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama']); ?></div>
+                                            <!-- <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama']); ?></div> -->
                                         </td>
                                         <td class="px-4 py-3 text-center text-gray-600">
                                             <?php echo formatQty($row['stok']) . ' ' . unitLabel($row['unit_type']); ?>

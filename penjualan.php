@@ -8,6 +8,8 @@ $error = '';
 // Proses Penjualan
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
     $tanggal = $_POST['tanggal'];
+    $jam = $_POST['jam'];
+    $tanggal_waktu = $tanggal . ' ' . $jam; // Combine date dan time menjadi DATETIME
     $metode_bayar = 'tunai';
     $barang_ids = $_POST['barang_id'];
     $units = $_POST['unit'];
@@ -93,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
             // Insert penjualan
             $query = "INSERT INTO penjualan (tanggal, total_bayar, metode_bayar) VALUES (?, ?, ?)";
             $stmt = mysqli_prepare($conn, $query);
-            mysqli_stmt_bind_param($stmt, "sds", $tanggal, $total_bayar, $metode_bayar);
+            mysqli_stmt_bind_param($stmt, "sds", $tanggal_waktu, $total_bayar, $metode_bayar);
             mysqli_stmt_execute($stmt);
             $penjualan_id = mysqli_insert_id($conn);
 
@@ -233,6 +235,13 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
                                 <label class="block text-gray-700 text-sm md:text-base font-medium mb-1">Tanggal</label>
                                 <input type="date" name="tanggal" required
                                     value="<?php echo date('Y-m-d'); ?>"
+                                    class="w-full px-3 py-2 md:px-4 md:py-2 border rounded-lg focus:outline-none focus:border-blue-500 text-sm md:text-base">
+                            </div>
+
+                            <div>
+                                <label class="block text-gray-700 text-sm md:text-base font-medium mb-1">Jam</label>
+                                <input type="time" name="jam" required
+                                    value="<?php echo date('H:i'); ?>"
                                     class="w-full px-3 py-2 md:px-4 md:py-2 border rounded-lg focus:outline-none focus:border-blue-500 text-sm md:text-base">
                             </div>
 

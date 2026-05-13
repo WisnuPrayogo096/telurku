@@ -77,13 +77,13 @@ $detail_result = mysqli_query($conn, $detail_query);
                         <div class="flex justify-between items-start border-b pb-3">
                             <div class="flex-1">
                                 <p class="font-medium"><?php echo $item['nama_barang']; ?></p>
-                                <p class="text-sm text-gray-600">
+                                <!-- <p class="text-sm text-gray-600">
                                     Pemilik:
                                     <span class="px-2 py-0.5 rounded-full text-xs
                                     <?php echo $item['owner_nama'] == 'Ibu' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'; ?>">
                                         <?php echo $item['owner_nama']; ?>
                                     </span>
-                                </p>
+                                </p> -->
                                 <p class="text-sm text-gray-600">
                                     <?php echo formatQty($item['jumlah']); ?> <?php echo htmlspecialchars($item['unit'] ?? 'pcs'); ?>
                                     x <?php echo formatRupiah($item['harga_satuan']); ?>

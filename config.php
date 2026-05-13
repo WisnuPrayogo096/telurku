@@ -101,7 +101,40 @@ function ensureBarangSchema($conn)
     mysqli_query($conn, $sql_stok_masuk);
 }
 
+// Pastikan tabel users memiliki kolom last_login untuk persistent session
+function ensureUsersSchema($conn)
+{
+    $columns = [];
+    if ($result = mysqli_query($conn, "SHOW COLUMNS FROM users")) {
+        while ($row = mysqli_fetch_assoc($result)) {
+            $columns[$row['Field']] = $row;
+        }
+    }
+
+    if (!isset($columns['last_login'])) {
+        mysqli_query($conn, "ALTER TABLE users ADD COLUMN last_login TIMESTAMP NULL AFTER role");
+    }
+}
+
+// Pastikan tabel penjualan memiliki kolom tanggal sebagai DATETIME
+function ensurePenjualanSchema($conn)
+{
+    $columns = [];
+    if ($result = mysqli_query($conn, "SHOW COLUMNS FROM penjualan")) {
+        while ($row = mysqli_fetch_assoc($result)) {
+            $columns[$row['Field']] = $row;
+        }
+    }
+
+    // Ubah kolom tanggal dari DATE ke DATETIME
+    if (isset($columns['tanggal']) && $columns['tanggal']['Type'] === 'date') {
+        mysqli_query($conn, "ALTER TABLE penjualan MODIFY COLUMN tanggal DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP");
+    }
+}
+
 // Jalankan penyesuaian skema (aman jika sudah pernah dijalankan).
+ensureUsersSchema($conn);
+ensurePenjualanSchema($conn);
 ensureBarangSchema($conn);
 
 // Function untuk cek login
@@ -127,9 +160,36 @@ function checkPermission($owner_id)
 // Redirect jika belum login
 function requireLogin()
 {
+    global $conn;
+
     if (!isLoggedIn()) {
         header("Location: login");
         exit();
+    }
+
+    // Cek apakah session sudah expired (30 hari = 2592000 detik)
+    $session_timeout = 30 * 24 * 60 * 60; // 30 hari
+    $user_id = $_SESSION['user_id'];
+
+    // Ambil last_login dari database
+    $query = "SELECT last_login FROM users WHERE id = ?";
+    $stmt = mysqli_prepare($conn, $query);
+    mysqli_stmt_bind_param($stmt, "i", $user_id);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    $user = mysqli_fetch_assoc($result);
+
+    if ($user && $user['last_login']) {
+        // Konversi timestamp database ke unix time
+        $last_login_time = strtotime($user['last_login']);
+        $current_time = time();
+
+        if ($current_time - $last_login_time > $session_timeout) {
+            // Session expired, destroy dan redirect ke login
+            session_destroy();
+            header("Location: login?expired=1");
+            exit();
+        }
     }
 }
 

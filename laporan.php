@@ -6,8 +6,8 @@ $user_id = (int)$_SESSION['user_id'];
 $role = $_SESSION['role'];
 
 // Filter (escape untuk prevent SQL injection)
-$dari_tanggal = mysqli_real_escape_string($conn, $_GET['dari'] ?? date('Y-m-01'));
-$sampai_tanggal = mysqli_real_escape_string($conn, $_GET['sampai'] ?? date('Y-m-d'));
+$dari_tanggal = mysqli_real_escape_string($conn, $_GET['dari'] ?? getCurrentDate());
+$sampai_tanggal = mysqli_real_escape_string($conn, $_GET['sampai'] ?? getCurrentDate());
 
 // Query laporan berdasarkan permission
 if ($role == 'anak') {

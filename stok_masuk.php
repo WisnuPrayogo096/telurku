@@ -10,7 +10,7 @@ $error = '';
 // Proses Tambah Stok Masuk
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_stok'])) {
     $barang_id = (int)$_POST['barang_id'];
-    $tanggal = $_POST['tanggal'];
+    $tanggal = getCurrentDate(); // Otomatis tanggal dengan timezone GMT+7
     $jumlah_tambah = (float)$_POST['jumlah_tambah'];
 
     // Opsional harga beli/jual baru
@@ -210,12 +210,6 @@ $riwayat_result = mysqli_query($conn, $riwayat_query);
                     </h2>
                     <form method="POST" action="">
                         <div class="space-y-4">
-                            <div>
-                                <label class="block text-gray-700 font-medium mb-1">Tanggal Masuk</label>
-                                <input type="date" name="tanggal" required value="<?php echo date('Y-m-d'); ?>"
-                                    class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 shadow-sm">
-                            </div>
-
                             <div>
                                 <label class="block text-gray-700 font-medium mb-1">Pilih Barang</label>
                                 <select name="barang_id" id="barang_id" required class="w-full">

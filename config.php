@@ -1,6 +1,9 @@
 <?php
 session_start();
 
+// Set timezone to GMT+7 (Jakarta, Indonesia)
+date_default_timezone_set('Asia/Jakarta');
+
 // Database Configuration
 define('DB_HOST', '10.18.3.69');
 define('DB_USER', 'simsatsetroot');
@@ -260,4 +263,16 @@ function formatTanggal($tanggal)
     }
 
     return $split[2] . ' ' . $bulan[$bulanIndex] . ' ' . $split[0];
+}
+
+// Get current datetime dengan timezone GMT+7 (Jakarta)
+function getDateTime()
+{
+    return date('Y-m-d H:i:s');
+}
+
+// Get current date dengan timezone GMT+7 (Jakarta)
+function getCurrentDate()
+{
+    return date('Y-m-d');
 }

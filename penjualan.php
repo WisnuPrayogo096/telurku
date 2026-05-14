@@ -7,9 +7,7 @@ $error = '';
 
 // Proses Penjualan
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
-    $tanggal = $_POST['tanggal'];
-    $jam = $_POST['jam'];
-    $tanggal_waktu = $tanggal . ' ' . $jam; // Combine date dan time menjadi DATETIME
+    $tanggal_waktu = getDateTime(); // Otomatis datetime dengan timezone GMT+7
     $metode_bayar = 'tunai';
     $barang_ids = $_POST['barang_id'];
     $units = $_POST['unit'];
@@ -230,28 +228,7 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <!-- Kolom kiri: daftar item -->
                     <div class="lg:col-span-2">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div>
-                                <label class="block text-gray-700 text-sm md:text-base font-medium mb-1">Tanggal</label>
-                                <input type="date" name="tanggal" required
-                                    value="<?php echo date('Y-m-d'); ?>"
-                                    class="w-full px-3 py-2 md:px-4 md:py-2 border rounded-lg focus:outline-none focus:border-blue-500 text-sm md:text-base">
-                            </div>
-
-                            <div>
-                                <label class="block text-gray-700 text-sm md:text-base font-medium mb-1">Jam</label>
-                                <input type="time" name="jam" required
-                                    value="<?php echo date('H:i'); ?>"
-                                    class="w-full px-3 py-2 md:px-4 md:py-2 border rounded-lg focus:outline-none focus:border-blue-500 text-sm md:text-base">
-                            </div>
-
-                            <div>
-                                <label class="block text-gray-700 text-sm md:text-base font-medium mb-1">Metode Pembayaran</label>
-                                <input type="text" value="Tunai" readonly
-                                    class="w-full px-3 py-2 md:px-4 md:py-2 border rounded-lg bg-gray-100 text-gray-700 focus:outline-none text-sm md:text-base">
-                                <input type="hidden" name="metode_bayar" id="metodeBayar" value="tunai">
-                            </div>
-                        </div>
+                        <input type="hidden" name="metode_bayar" id="metodeBayar" value="tunai">
 
                         <div class="bg-gray-50 border rounded-lg p-4 mb-4">
                             <label class="block text-gray-700 text-sm font-medium mb-2 inline-flex items-center gap-2">

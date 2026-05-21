@@ -2,10 +2,9 @@
 require_once 'config.php';
 requireLogin();
 
-$user_id = (int)$_SESSION['user_id'];
-$role = $_SESSION['role'];
 $success = '';
 $error = '';
+$tanggal_filter = mysqli_real_escape_string($conn, $_GET['tanggal'] ?? getCurrentDate());
 
 // Proses Tambah Stok Masuk
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_stok'])) {
@@ -23,8 +22,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_stok'])) {
 
     if (!$barang) {
         $error = "Barang tidak ditemukan!";
-    } elseif (!checkPermission($barang['owner_id'])) {
-        $error = "Anda tidak memiliki izin untuk menambah stok barang ini!";
     } else {
         $jumlah_input = $jumlah_tambah;
         if ($barang['unit_type'] === 'renteng') {
@@ -32,14 +29,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_stok'])) {
         }
         $harga_beli_insert = $harga_beli_baru >= 0 ? $harga_beli_baru : $barang['harga_beli'];
         $harga_jual_insert = $harga_jual_baru >= 0 ? $harga_jual_baru : $barang['harga_jual'];
-        $owner_id = $barang['owner_id'];
 
         mysqli_begin_transaction($conn);
         try {
             // Insert ke tabel stok_masuk
-            $query_insert = "INSERT INTO stok_masuk (tanggal, barang_id, jumlah_tambah, harga_beli, harga_jual, owner_id) VALUES (?, ?, ?, ?, ?, ?)";
+            $query_insert = "INSERT INTO stok_masuk (tanggal, barang_id, jumlah_tambah, harga_beli, harga_jual) VALUES (?, ?, ?, ?, ?)";
             $stmt = mysqli_prepare($conn, $query_insert);
-            mysqli_stmt_bind_param($stmt, "sidddi", $tanggal, $barang_id, $jumlah_tambah, $harga_beli_insert, $harga_jual_insert, $owner_id);
+            mysqli_stmt_bind_param($stmt, "siddd", $tanggal, $barang_id, $jumlah_tambah, $harga_beli_insert, $harga_jual_insert);
             mysqli_stmt_execute($stmt);
 
             // Update stok di tabel barang
@@ -88,13 +84,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_stok'])) {
 if (isset($_GET['delete'])) {
     $id = (int)$_GET['delete'];
 
-    // Cek ownership
-    $check = mysqli_query($conn, "SELECT sm.*, b.owner_id FROM stok_masuk sm JOIN barang b ON sm.barang_id = b.id WHERE sm.id=$id");
+    $check = mysqli_query($conn, "SELECT sm.* FROM stok_masuk sm WHERE sm.id=$id");
     $sm_data = mysqli_fetch_assoc($check);
 
     if (!$sm_data) {
         $error = 'Data stok masuk tidak ditemukan!';
-    } elseif (checkPermission($sm_data['owner_id'])) {
+    } else {
         mysqli_begin_transaction($conn);
         try {
             // Kurangi stok barang karena data dihapus
@@ -112,106 +107,58 @@ if (isset($_GET['delete'])) {
             mysqli_rollback($conn);
             $error = "Gagal menghapus data stok masuk!";
         }
-    } else {
-        $error = 'Anda tidak memiliki izin untuk menghapus!';
     }
 }
 
 // Ambil list barang untuk dropdown
-if ($role == 'anak') {
-    $barang_query = "SELECT id, nama_barang, unit_type, isi_renteng, stok, owner_id FROM barang ORDER BY nama_barang ASC";
-} else {
-    $barang_query = "SELECT id, nama_barang, unit_type, isi_renteng, stok, owner_id FROM barang WHERE owner_id = $user_id ORDER BY nama_barang ASC";
-}
+$barang_query = "SELECT id, nama_barang, unit_type, isi_renteng, stok FROM barang ORDER BY nama_barang ASC";
 $barang_result = mysqli_query($conn, $barang_query);
 
 // Ambil data riwayat stok masuk
-if ($role == 'anak') {
-    $riwayat_query = "SELECT sm.*, b.nama_barang, b.unit_type, b.isi_renteng, u.nama as owner_nama FROM stok_masuk sm 
-                      JOIN barang b ON sm.barang_id = b.id 
-                      JOIN users u ON sm.owner_id = u.id 
-                      ORDER BY sm.tanggal DESC, sm.id DESC LIMIT 100";
-} else {
-    $riwayat_query = "SELECT sm.*, b.nama_barang, b.unit_type, b.isi_renteng, u.nama as owner_nama FROM stok_masuk sm 
-                      JOIN barang b ON sm.barang_id = b.id 
-                      JOIN users u ON sm.owner_id = u.id 
-                      WHERE sm.owner_id = $user_id 
-                      ORDER BY sm.tanggal DESC, sm.id DESC LIMIT 100";
-}
+$riwayat_query = "SELECT sm.*, b.nama_barang, b.unit_type, b.isi_renteng FROM stok_masuk sm 
+                  JOIN barang b ON sm.barang_id = b.id 
+                  WHERE sm.tanggal = '$tanggal_filter'
+                  ORDER BY sm.tanggal DESC, sm.id DESC";
 $riwayat_result = mysqli_query($conn, $riwayat_query);
+$total_harga_beli = 0;
+$pageTitle = 'Stok Masuk - Toko Rahmat Jaya';
+$extraHead = '<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="includes/select2_theme.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">';
+require_once 'includes/head.php';
+$navTitle = 'Stok Masuk (Restock)';
+$navBackUrl = 'index';
+require_once 'includes/navbar.php';
+require_once 'includes/swal_flash.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" sizes="16x16" href="icons/16×16.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/32×32.png">
-    <link rel="icon" type="image/png" sizes="48x48" href="icons/48×48.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/192×192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="icons/512×512.png">
-    <link rel="apple-touch-icon" href="icons/180×180.png">
-    <title>Stok Masuk - Toko Rahmat Jaya</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
-    <style>
-        .select2-container--default .select2-selection--single {
-            height: 42px;
-            border: 1px solid #d1d5db;
-            border-radius: 0.5rem;
-            padding: 0.5rem;
-        }
-
-        .select2-container--default .select2-selection--single .select2-selection__rendered {
-            line-height: 26px;
-            padding-left: 8px;
-            color: #374151;
-        }
-
-        .select2-container--default .select2-selection--single .select2-selection__arrow {
-            height: 40px;
-            right: 8px;
-        }
-    </style>
-</head>
-
-<body class="bg-gray-100">
-    <nav class="bg-blue-600 text-white p-4">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-bold">Stok Masuk (Restock)</h1>
-            <a href="index" class="bg-blue-700 px-4 py-2 rounded hover:bg-blue-800 flex items-center gap-2">
-                <i class="ph ph-arrow-left"></i> Kembali
-            </a>
+<div class="app-container max-w-6xl">
+    <div class="app-panel mb-6">
+        <div class="app-panel-body flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <form method="GET" class="flex flex-col sm:flex-row gap-3 sm:items-end flex-1">
+                <div class="flex-1 max-w-xs">
+                    <label class="app-label">Tanggal Riwayat</label>
+                    <input type="date" name="tanggal" value="<?php echo htmlspecialchars($tanggal_filter); ?>" class="app-input">
+                </div>
+                <button type="submit" class="btn btn-secondary"><i class="ph ph-funnel"></i> Filter</button>
+            </form>
+            <button type="button" id="openStokModal" class="btn btn-primary py-3">
+                <i class="ph ph-plus-circle"></i> Tambah Stok Masuk
+            </button>
         </div>
-    </nav>
+    </div>
 
-    <div class="container mx-auto p-4 max-w-6xl">
-        <?php if ($success): ?>
-            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4 shadow-sm">
-                <?php echo $success; ?>
+    <div id="stokModal" class="app-modal-backdrop hidden">
+        <div class="app-modal max-w-xl" onclick="event.stopPropagation()">
+            <div class="app-modal-header">
+                <h2 class="font-bold flex items-center gap-2"><i class="ph ph-package text-amber-600"></i> Form Stok Masuk</h2>
+                <button type="button" id="closeStokModal" class="text-slate-400 hover:text-slate-600 p-1"><i class="ph ph-x text-xl"></i></button>
             </div>
-        <?php endif; ?>
-
-        <?php if ($error): ?>
-            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 shadow-sm">
-                <?php echo $error; ?>
-            </div>
-        <?php endif; ?>
-
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Form Input -->
-            <div class="lg:col-span-1">
-                <div class="bg-white rounded-lg shadow-md p-6">
-                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-gray-800">
-                        <i class="ph ph-package text-blue-600 text-xl"></i> Form Stok Masuk
-                    </h2>
+            <div class="p-5">
                     <form method="POST" action="">
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-gray-700 font-medium mb-1">Pilih Barang</label>
+                                <label class="app-label">Pilih Barang</label>
                                 <select name="barang_id" id="barang_id" required class="w-full">
                                     <option value="">-- Cari Barang --</option>
                                     <?php while ($brg = mysqli_fetch_assoc($barang_result)): ?>
@@ -223,43 +170,32 @@ $riwayat_result = mysqli_query($conn, $riwayat_query);
                             </div>
 
                             <div>
-                                <label class="block text-gray-700 font-medium mb-1">Jumlah Tambah <span id="unitLabel" class="text-sm text-blue-600"></span></label>
-                                <input type="number" step="1" min="1" name="jumlah_tambah" required placeholder="Contoh: 2000"
-                                    class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 shadow-sm">
+                                <label class="app-label">Jumlah Tambah <span id="unitLabel" class="text-amber-600 font-normal"></span></label>
+                                <input type="number" step="1" min="1" name="jumlah_tambah" required placeholder="Contoh: 10" class="app-input">
                             </div>
-
-                            <div class="border-t pt-4 mt-4">
-                                <label class="block text-gray-600 text-sm font-medium mb-2"><i class="ph ph-info"></i> Opsional: Update Harga (Biarkan kosong jika tetap)</label>
+                            <div class="section-card p-4">
+                                <label class="text-sm font-medium text-slate-600 mb-2 block"><i class="ph ph-info text-amber-600"></i> Opsional: update harga</label>
                                 <div class="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <input type="number" step="0.01" name="harga_beli_baru" placeholder="H. Beli Baru"
-                                            class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500 text-sm">
-                                    </div>
-                                    <div>
-                                        <input type="number" step="0.01" name="harga_jual_baru" placeholder="H. Jual Baru"
-                                            class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500 text-sm">
-                                    </div>
+                                    <input type="number" step="0.01" name="harga_beli_baru" placeholder="H. Beli Baru" class="app-input text-sm">
+                                    <input type="number" step="0.01" name="harga_jual_baru" placeholder="H. Jual Baru" class="app-input text-sm">
                                 </div>
                             </div>
-
-                            <button type="submit" name="tambah_stok" class="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 font-medium transition shadow flex items-center justify-center gap-2 mt-4">
-                                <i class="ph ph-plus-circle text-lg"></i> Simpan Stok Masuk
+                            <button type="submit" name="tambah_stok" class="btn btn-primary w-full py-3 mt-2">
+                                <i class="ph ph-floppy-disk"></i> Simpan Stok Masuk
                             </button>
                         </div>
                     </form>
-                </div>
             </div>
+        </div>
+    </div>
 
-            <!-- Tabel Riwayat -->
-            <div class="lg:col-span-2">
-                <div class="bg-white rounded-lg shadow-md overflow-hidden">
-                    <div class="p-4 border-b bg-gray-50 flex justify-between items-center">
-                        <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
-                            <i class="ph ph-clock-counter-clockwise text-blue-600 text-xl"></i> Riwayat Stok Masuk (100 Terakhir)
-                        </h2>
-                    </div>
+    <div class="app-panel overflow-hidden">
+        <div class="app-panel-header">
+            <span class="app-panel-title"><i class="ph ph-clock-counter-clockwise text-amber-600"></i> Riwayat Stok Masuk</span>
+            <span class="text-sm font-bold text-slate-700">Total Beli: <span class="text-amber-600" id="totalHargaBeliDisplay">Rp 0</span></span>
+        </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
+                        <table class="w-full text-left border-collapse" id="stokMasukTable">
                             <thead>
                                 <tr class="bg-gray-100 text-gray-700 text-sm border-b">
                                     <th class="px-4 py-3 font-semibold">Tanggal</th>
@@ -273,27 +209,23 @@ $riwayat_result = mysqli_query($conn, $riwayat_query);
                             <tbody class="text-sm">
                                 <?php if (mysqli_num_rows($riwayat_result) > 0): ?>
                                     <?php while ($row = mysqli_fetch_assoc($riwayat_result)): ?>
-                                        <tr class="border-b hover:bg-gray-50">
+                                        <?php $total_harga_beli += ((float)$row['harga_beli'] * (float)$row['jumlah_tambah']); ?>
+                                        <tr class="border-b hover:bg-amber-50/40">
                                             <td class="px-4 py-3"><?php echo formatTanggal($row['tanggal']); ?></td>
                                             <td class="px-4 py-3">
                                                 <span class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></span>
-                                                <div class="text-xs text-gray-500"><?php echo $row['owner_nama']; ?></div>
                                             </td>
                                             <td class="px-4 py-3 text-center">
-                                                <span class="inline-block px-2 py-1 bg-green-100 text-green-800 rounded font-bold">
+                                                <span class="badge badge-green font-bold">
                                                     +<?php echo ($row['unit_type'] === 'renteng' && (int)$row['isi_renteng'] > 0) ? formatQty($row['jumlah_tambah'] / max((int)$row['isi_renteng'], 1)) . ' renteng' : formatQty($row['jumlah_tambah']) . ' ' . unitLabel($row['unit_type']); ?>
                                                 </span>
                                             </td>
                                             <td class="px-4 py-3 text-right"><?php echo formatRupiah($row['harga_beli']); ?></td>
                                             <td class="px-4 py-3 text-right"><?php echo formatRupiah($row['harga_jual']); ?></td>
                                             <td class="px-4 py-3 text-center">
-                                                <?php if (checkPermission($row['owner_id'])): ?>
-                                                    <button type="button" data-id="<?php echo $row['id']; ?>" class="delete-btn text-red-500 hover:text-red-700 transition" title="Batal/Hapus">
-                                                        <i class="ph ph-trash text-lg"></i>
-                                                    </button>
-                                                <?php else: ?>
-                                                    <span class="text-gray-400">-</span>
-                                                <?php endif; ?>
+                                                <button type="button" data-id="<?php echo $row['id']; ?>" class="delete-btn text-red-500 hover:text-red-700 transition" title="Batal/Hapus">
+                                                    <i class="ph ph-trash text-lg"></i>
+                                                </button>
                                             </td>
                                         </tr>
                                     <?php endwhile; ?>
@@ -307,18 +239,47 @@ $riwayat_result = mysqli_query($conn, $riwayat_query);
                             </tbody>
                         </table>
                     </div>
-                </div>
-            </div>
-        </div>
     </div>
+</div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
     <script>
         $(document).ready(function() {
             $('#barang_id').select2({
                 placeholder: '-- Cari Barang --',
                 allowClear: true
+            });
+            $('#stokMasukTable').DataTable({
+                pageLength: 25,
+                order: [[0, 'desc']],
+                language: { url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/id.json' }
+            });
+
+            $('#totalHargaBeliDisplay').text(new Intl.NumberFormat('id-ID', {
+                style: 'currency',
+                currency: 'IDR',
+                maximumFractionDigits: 0
+            }).format(<?php echo (float)$total_harga_beli; ?>));
+
+            $('#openStokModal').on('click', function() {
+                $('#stokModal').removeClass('hidden');
+                setTimeout(function() {
+                    $('#barang_id').select2('open');
+                    document.querySelector('.select2-search__field')?.focus();
+                }, 100);
+            });
+
+            $('#closeStokModal').on('click', function() {
+                $('#stokModal').addClass('hidden');
+            });
+            $('#stokModal').on('click', function(e) {
+                if (e.target === this) $('#stokModal').addClass('hidden');
+            });
+
+            $('#barang_id').on('select2:open', function() {
+                document.querySelector('.select2-search__field')?.focus();
             });
 
             $('#barang_id').on('change', function() {
@@ -341,7 +302,7 @@ $riwayat_result = mysqli_query($conn, $riwayat_query);
                     showCancelButton: true,
                     confirmButtonText: 'Ya, hapus',
                     cancelButtonText: 'Batal',
-                    confirmButtonColor: '#ef4444',
+                    confirmButtonColor: '#dc2626',
                     cancelButtonColor: '#6b7280'
                 });
 
@@ -351,6 +312,4 @@ $riwayat_result = mysqli_query($conn, $riwayat_query);
             });
         });
     </script>
-</body>
-
-</html>
+<?php require_once 'includes/footer.php'; ?>

@@ -46,14 +46,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
             $isi = max((int)($barang['isi_renteng'] ?? 1), 1);
             $harga_satuan = (($barang['harga_jual_pcs'] ?? 0) > 0 ? $barang['harga_jual_pcs'] : $barang['harga_jual']) * $isi;
             $jumlah_pcs = $jumlah * $isi;
-        } elseif ($unit === 'pax') {
-            $isi = max((int)($barang['isi_pax'] ?? 1), 1);
-            $harga_satuan = (($barang['harga_jual_pcs'] ?? 0) > 0 ? $barang['harga_jual_pcs'] : $barang['harga_jual']) * $isi;
-            $jumlah_pcs = $jumlah * $isi;
-        } elseif ($unit === 'slop') {
-            $isi = max((int)($barang['isi_slop'] ?? 1), 1);
-            $harga_satuan = (($barang['harga_jual_pcs'] ?? 0) > 0 ? $barang['harga_jual_pcs'] : $barang['harga_jual']) * $isi;
-            $jumlah_pcs = $jumlah * $isi;
         } elseif ($unit === 'pcs' && ($barang['harga_jual_pcs'] ?? 0) > 0) {
             $harga_satuan = $barang['harga_jual_pcs'];
         } elseif ($unit === 'gram' || $unit === 'gram (custom)') {
@@ -80,7 +72,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
             'jumlah' => $jumlah,
             'harga_satuan' => $harga_satuan,
             'subtotal' => $subtotal,
-            'owner_id' => $barang['owner_id'],
             'jumlah_pcs' => $jumlah_pcs
         ];
     }
@@ -99,19 +90,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
 
             // Insert detail dan update stok
             foreach ($items as $item) {
-                $query = "INSERT INTO detail_penjualan (penjualan_id, barang_id, unit, jumlah, harga_satuan, subtotal, owner_id) 
-                         VALUES (?, ?, ?, ?, ?, ?, ?)";
+                $query = "INSERT INTO detail_penjualan (penjualan_id, barang_id, unit, jumlah, harga_satuan, subtotal) 
+                         VALUES (?, ?, ?, ?, ?, ?)";
                 $stmt = mysqli_prepare($conn, $query);
                 mysqli_stmt_bind_param(
                     $stmt,
-                    "iisdddi",
+                    "iisddd",
                     $penjualan_id,
                     $item['barang_id'],
                     $item['unit'],
                     $item['jumlah'],
                     $item['harga_satuan'],
-                    $item['subtotal'],
-                    $item['owner_id']
+                    $item['subtotal']
                 );
                 mysqli_stmt_execute($stmt);
 
@@ -132,8 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
 }
 
 // Ambil data barang
-$barang_query = "SELECT b.*, u.nama as owner_nama FROM barang b 
-                 JOIN users u ON b.owner_id = u.id 
+$barang_query = "SELECT b.* FROM barang b 
                  WHERE b.stok > 0 
                  ORDER BY b.nama_barang";
 $barang_result = mysqli_query($conn, $barang_query);
@@ -141,101 +130,33 @@ $barang_list = [];
 while ($row = mysqli_fetch_assoc($barang_result)) {
     $barang_list[] = $row;
 }
+$pageTitle = 'Transaksi Penjualan - Toko Rahmat Jaya';
+$extraHead = '<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="includes/select2_theme.css">';
+require_once 'includes/head.php';
+$navTitle = 'Transaksi Penjualan';
+$navBackUrl = 'index';
+require_once 'includes/navbar.php';
+require_once 'includes/swal_flash.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" sizes="16x16" href="icons/16×16.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/32×32.png">
-    <link rel="icon" type="image/png" sizes="48x48" href="icons/48×48.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/192×192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="icons/512×512.png">
-    <link rel="apple-touch-icon" href="icons/180×180.png">
-    <title>Transaksi Penjualan - Toko Rahmat Jaya</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
-    <style>
-        /* Custom styling untuk Select2 */
-        .select2-container--default .select2-selection--single {
-            height: 42px;
-            border: 1px solid #d1d5db;
-            border-radius: 0.5rem;
-            padding: 0.5rem;
-        }
-
-        .select2-container--default .select2-selection--single .select2-selection__rendered {
-            line-height: 26px;
-            padding-left: 8px;
-            color: #374151;
-        }
-
-        .select2-container--default .select2-selection--single .select2-selection__arrow {
-            height: 40px;
-            right: 8px;
-        }
-
-        .select2-dropdown {
-            border: 1px solid #d1d5db;
-            border-radius: 0.5rem;
-        }
-
-        .select2-container--default .select2-results__option--highlighted[aria-selected] {
-            background-color: #3b82f6;
-        }
-
-        .select2-container--default .select2-search--dropdown .select2-search__field {
-            border: 1px solid #d1d5db;
-            border-radius: 0.375rem;
-            padding: 0.5rem;
-        }
-
-        .select2-container {
-            width: 100% !important;
-        }
-    </style>
-</head>
-
-<body class="bg-gray-100">
-    <nav class="bg-blue-600 text-white p-4">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-bold">Transaksi Penjualan</h1>
-            <a href="index" class="bg-blue-700 px-4 py-2 rounded hover:bg-blue-800 flex items-center gap-2 text-sm md:text-base">
-                <i class="ph ph-arrow-left"></i> Kembali
-            </a>
+<div class="app-container">
+    <div class="app-panel">
+        <div class="app-panel-header">
+            <span class="app-panel-title"><i class="ph ph-hand-coins text-amber-600"></i> Kasir Penjualan</span>
+            <span class="text-xs text-slate-500 hidden sm:inline">Enter = tambah barang</span>
         </div>
-    </nav>
-
-    <div class="container mx-auto p-4">
-        <?php if ($success): ?>
-            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-                <?php echo $success; ?>
-            </div>
-        <?php endif; ?>
-
-        <?php if ($error): ?>
-            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                <?php echo $error; ?>
-            </div>
-        <?php endif; ?>
-
-        <div class="bg-white rounded-lg shadow p-4 md:p-6">
-            <h2 class="text-xl font-bold mb-4">Kasir Penjualan</h2>
+        <div class="app-panel-body">
             <form method="POST" action="" id="formPenjualan" class="space-y-4">
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    <!-- Kolom kiri: daftar item -->
-                    <div class="lg:col-span-2">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <div class="lg:col-span-2 space-y-4">
                         <input type="hidden" name="metode_bayar" id="metodeBayar" value="tunai">
 
-                        <div class="bg-gray-50 border rounded-lg p-4 mb-4">
-                            <label class="block text-gray-700 text-sm font-medium mb-2 inline-flex items-center gap-2">
-                                <i class="ph ph-magnifying-glass"></i>
-                                Cari & Pilih Barang
+                        <div class="search-box">
+                            <label class="app-label inline-flex items-center gap-2">
+                                <i class="ph ph-magnifying-glass text-amber-600"></i> Cari &amp; Pilih Barang
                             </label>
-                            <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                            <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end mt-2">
                                 <div class="md:col-span-9">
                                     <select id="pilihBarang" class="w-full">
                                         <option value="">-- Ketik untuk mencari barang --</option>
@@ -247,24 +168,20 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
                                                 data-stok="<?php echo $barang['stok']; ?>"
                                                 data-unit="<?php echo $barang['unit_type']; ?>"
                                                 data-isi-renteng="<?php echo $barang['isi_renteng'] ?? 0; ?>"
-                                                data-owner="<?php echo $barang['owner_nama']; ?>"
                                                 data-nama="<?php echo htmlspecialchars($barang['nama_barang']); ?>">
                                                 <?php echo $barang['nama_barang']; ?> - Stok: <?php echo ($barang['unit_type'] === 'renteng' && (int)$barang['isi_renteng'] > 0) ? formatQty($barang['stok'] / max((int)$barang['isi_renteng'], 1)) . ' renteng' : formatQty($barang['stok']) . ' ' . unitLabel($barang['unit_type']); ?> - <?php echo formatRupiah($barang['harga_jual']); ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
-                                <div class="md:col-span-3">
-                                    <button type="button" id="btnTambahList"
-                                        class="w-full bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 text-sm md:text-base font-medium transition inline-flex items-center justify-center gap-2">
-                                        <i class="ph ph-plus-circle"></i> Tambah
-                                    </button>
+                                <div class="md:col-span-3 text-xs text-amber-800/80 font-medium md:pb-3 flex items-center gap-1">
+                                    <i class="ph ph-keyboard"></i> Enter = tambah
                                 </div>
                             </div>
                         </div>
 
-                        <div class="border rounded-lg overflow-hidden">
-                            <div class="hidden md:grid grid-cols-12 bg-gray-100 text-xs font-semibold text-gray-700 px-3 py-2">
+                        <div class="app-panel overflow-hidden !shadow-sm">
+                            <div class="hidden md:grid grid-cols-12 bg-slate-100 text-xs font-bold text-slate-600 px-3 py-2.5 uppercase tracking-wide">
                                 <div class="col-span-4">Barang</div>
                                 <div class="col-span-2 text-center">Unit</div>
                                 <div class="col-span-2 text-center">Qty</div>
@@ -272,57 +189,50 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
                                 <div class="col-span-1 text-right">Subtotal</div>
                                 <div class="col-span-1 text-center">Aksi</div>
                             </div>
-                            <div id="itemContainer" class="divide-y">
-                                <div id="emptyState" class="px-4 py-6 text-center text-sm text-gray-500">
-                                    Belum ada item. Tambahkan barang melalui dropdown di atas.
+                            <div id="itemContainer" class="divide-y divide-slate-100">
+                                <div id="emptyState" class="empty-state">
+                                    <i class="ph ph-shopping-cart text-3xl text-slate-300 block mb-2"></i>
+                                    Belum ada item. Ketik nama barang di atas lalu Enter.
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Kolom kanan: ringkasan belanja -->
-                    <div class="border rounded-lg p-4 bg-gray-50 flex flex-col justify-between gap-4">
-                        <div class="space-y-3">
-                            <h3 class="text-lg font-semibold text-gray-800">Ringkasan Belanja</h3>
-                            <div class="flex justify-between items-center">
-                                <span class="text-sm text-gray-600">Total Item</span>
-                                <span class="text-base font-semibold" id="totalItemDisplay">0</span>
+                    <div class="kasir-summary flex flex-col justify-between gap-4 min-h-[280px]">
+                        <div class="space-y-4">
+                            <h3 class="text-lg font-bold flex items-center gap-2">
+                                <i class="ph ph-receipt"></i> Ringkasan
+                            </h3>
+                            <div class="flex justify-between items-center text-slate-300">
+                                <span class="text-sm">Total Item</span>
+                                <span class="text-lg font-bold text-white" id="totalItemDisplay">0</span>
                             </div>
                             <div class="flex justify-between items-center">
-                                <span class="text-sm text-gray-600">Total Belanja</span>
-                                <span class="text-xl font-bold text-blue-600" id="totalBelanjaDisplay">Rp 0</span>
+                                <span class="text-sm text-slate-300">Total Belanja</span>
+                                <span class="total-display" id="totalBelanjaDisplay">Rp 0</span>
                             </div>
-
                             <input type="hidden" id="totalBelanjaInput" name="total_belanja_view" value="0">
-
-                            <div id="tunaiSection" class="space-y-3">
+                            <div id="tunaiSection" class="space-y-3 pt-2 border-t border-slate-600">
                                 <div>
-                                    <label class="block text-gray-700 text-sm font-medium mb-1">Tunai Diterima</label>
-                                    <input type="number" step="100" min="0" id="tunaiDiterima"
-                                        class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500 text-sm"
-                                        placeholder="Masukkan uang tunai (opsional)">
+                                    <label class="text-sm text-slate-300 block mb-1">Tunai Diterima</label>
+                                    <input type="number" step="100" min="0" id="tunaiDiterima" class="app-input !bg-slate-800 !border-slate-600 !text-white"
+                                        placeholder="Opsional — kosongkan jika uang pas">
                                 </div>
                                 <div class="flex justify-between items-center">
-                                    <span class="text-sm text-gray-600">Kembalian</span>
-                                    <span class="text-lg font-semibold text-green-600" id="kembalianDisplay">Rp 0</span>
+                                    <span class="text-sm text-slate-300">Kembalian</span>
+                                    <span class="text-lg font-bold text-emerald-400" id="kembalianDisplay">Rp 0</span>
                                 </div>
                             </div>
-                            <p class="text-xs text-gray-500 mt-2">
-                                Kosongkan Tunai Diterima jika pelanggan membayar dengan uang pas.
-                            </p>
                         </div>
-
-                        <div class="border-t pt-3 mt-2">
-                            <button type="submit" name="proses_jual"
-                                class="w-full bg-blue-500 text-white px-4 py-3 rounded-lg hover:bg-blue-600 text-base font-semibold transition inline-flex items-center justify-center gap-2">
-                                <i class="ph ph-hand-coins"></i> Proses Penjualan
-                            </button>
-                        </div>
+                        <button type="submit" name="proses_jual" class="btn btn-primary w-full py-3.5 text-base !shadow-lg">
+                            <i class="ph ph-check-circle"></i> Proses Penjualan
+                        </button>
                     </div>
                 </div>
             </form>
         </div>
     </div>
+</div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
@@ -468,7 +378,7 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
             if (emptyState) emptyState.remove();
 
             const row = document.createElement('div');
-            row.className = "item-row px-3 py-3 grid grid-cols-1 md:grid-cols-12 gap-3 items-center hover:bg-gray-50";
+            row.className = "item-row px-3 py-3 grid grid-cols-1 md:grid-cols-12 gap-3 items-center hover:bg-amber-50/50 transition-colors";
             row.dataset.harga = data.harga;
             row.dataset.hargaRenteng = data.hargaRenteng;
             row.dataset.hargaPcs = data.hargaPcs;
@@ -496,7 +406,7 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
                 </div>
 
                 <div class="md:col-span-2">
-                    <select name="unit[]" class="unit-select w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500 text-sm">
+                    <select name="unit[]" class="unit-select app-input text-sm py-2">
                         ${unitOptions}
                     </select>
                 </div>
@@ -504,7 +414,7 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
                 <div class="md:col-span-2 flex items-center gap-2">
                     <div class="flex-1">
                         <input type="number" name="jumlah[]" value="1"
-                            class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500 text-sm jumlah-input"
+                            class="app-input text-sm py-2 jumlah-input"
                             step="1" min="1" placeholder="Qty">
                     </div>
                     <span class="hidden md:inline text-xs text-gray-500 unit-label">${data.unit === 'gram' || data.unit === 'kg' ? 'gram' : 'pcs'}</span>
@@ -515,7 +425,7 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
                 </div>
 
                 <div class="md:col-span-1 md:text-right">
-                    <div class="text-sm font-bold text-blue-600 subtotal-item">Rp 0</div>
+                    <div class="text-sm font-bold text-amber-600 subtotal-item">Rp 0</div>
                 </div>
 
                 <div class="md:col-span-1 text-center">
@@ -556,8 +466,8 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
                         const container = document.getElementById('itemContainer');
                         const empty = document.createElement('div');
                         empty.id = 'emptyState';
-                        empty.className = 'px-4 py-6 text-center text-sm text-gray-500';
-                        empty.textContent = 'Belum ada item. Tambahkan barang melalui dropdown di atas.';
+                        empty.className = 'empty-state';
+                        empty.innerHTML = '<i class="ph ph-shopping-cart text-3xl text-slate-300 block mb-2"></i>Belum ada item. Ketik nama barang di atas lalu Enter.';
                         container.appendChild(empty);
                     }
                     updateTotals();
@@ -565,20 +475,18 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
             }
         }
 
-        document.getElementById('btnTambahList')?.addEventListener('click', () => {
+        function addSelectedBarang() {
             const select = $('#pilihBarang');
             const selectedValue = select.val();
 
             if (!selectedValue) {
-                alert('Pilih barang terlebih dahulu!');
-                return;
+                return false;
             }
 
             const opt = select.find('option:selected')[0];
             const data = {
                 id: selectedValue,
                 nama: opt.dataset.nama,
-                owner: opt.dataset.owner,
                 stok: opt.dataset.stok,
                 stokLabel: opt.textContent.split('Stok: ')[1]?.split(' - ')[0] || opt.dataset.stok,
                 unit: opt.dataset.unit,
@@ -590,6 +498,19 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
 
             createRow(data);
             select.val(null).trigger('change'); // Reset Select2
+            setTimeout(() => select.select2('open'), 50);
+            return true;
+        }
+
+        $('#pilihBarang').on('select2:select', function() {
+            addSelectedBarang();
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && document.querySelector('.select2-container--open')) {
+                e.preventDefault();
+                addSelectedBarang();
+            }
         });
 
         document.getElementById('metodeBayar')?.addEventListener('change', updateKembalian);
@@ -598,6 +519,4 @@ while ($row = mysqli_fetch_assoc($barang_result)) {
         // init total awal (keranjang kosong)
         updateTotals();
     </script>
-</body>
-
-</html>
+<?php require_once 'includes/footer.php'; ?>

@@ -2,355 +2,235 @@
 require_once 'config.php';
 requireLogin();
 
-$user_id = (int)$_SESSION['user_id'];
-$role = $_SESSION['role'];
-
-// Filter owner
-$where_owner_and = ($role == 'anak') ? "" : "AND b.owner_id = $user_id";
-
 // 1. BARANG HABIS
-$query_habis = "SELECT b.*, u.nama as owner_nama
-                FROM barang b
-                JOIN users u ON b.owner_id = u.id
-                WHERE b.stok <= 0
-                $where_owner_and
-                ORDER BY b.nama_barang ASC";
+$query_habis = "SELECT b.* FROM barang b WHERE b.stok <= 0 ORDER BY b.nama_barang ASC";
 $result_habis = mysqli_query($conn, $query_habis);
 
-// 2. HAMPIR HABIS (Stok > 0 tapi < 10 pcs, atau < 5000 gram)
-$query_hampir_habis = "SELECT b.*, u.nama as owner_nama
-                       FROM barang b
-                       JOIN users u ON b.owner_id = u.id
-                       WHERE b.stok > 0
-                       AND ((b.unit_type = 'gram' AND b.stok < 5000) OR (b.unit_type != 'gram' AND b.stok < 10))
-                       $where_owner_and
-                       ORDER BY b.stok ASC, b.nama_barang ASC";
+// 2. HAMPIR HABIS — ambang disesuaikan per satuan
+$query_hampir_habis = "SELECT b.* FROM barang b
+    WHERE b.stok > 0
+    AND (
+        (b.unit_type = 'gram' AND b.stok < 5000)
+        OR (b.unit_type = 'renteng' AND b.isi_renteng > 0 AND b.stok < b.isi_renteng)
+        OR (b.unit_type NOT IN ('gram', 'renteng') AND b.stok < 10)
+        OR (b.unit_type = 'renteng' AND (b.isi_renteng IS NULL OR b.isi_renteng = 0) AND b.stok < 10)
+    )
+    ORDER BY b.stok ASC, b.nama_barang ASC";
 $result_hampir_habis = mysqli_query($conn, $query_hampir_habis);
 
-// Fungsi Helper Query Penjualan (Fast/Slow Moving)
-function getMovingItems($conn, $where_owner_and, $interval_days, $is_fast, $limit = 10)
+function getMovingItems($conn, $interval_days, $is_fast, $limit = 10)
 {
-    // Jika fast moving: barang yang terjual paling banyak.
-    // Jika slow moving: barang yang paling sedikit terjual (termasuk yang 0).
+    $order_dir = $is_fast ? 'DESC' : 'ASC';
+    $having = $is_fast ? 'HAVING total_terjual > 0' : '';
+    $stok_filter = $is_fast ? '' : 'AND b.stok > 0';
 
-    $order_dir = $is_fast ? "DESC" : "ASC";
-    $stok_filter = $is_fast ? "" : "AND b.stok > 0";
-
-    $query = "SELECT b.nama_barang, b.unit_type, b.stok, u.nama as owner_nama,
-              COALESCE(SUM(CASE
-                  WHEN p.id IS NULL THEN 0
-                  WHEN dp.unit = 'renteng' THEN dp.jumlah * GREATEST(b.isi_renteng, 1)
-                  WHEN dp.unit = 'pax' THEN dp.jumlah * GREATEST(b.isi_pax, 1)
-                  WHEN dp.unit = 'slop' THEN dp.jumlah * GREATEST(b.isi_slop, 1)
-                  WHEN dp.unit = '1 kg' THEN dp.jumlah * 1000
-                  ELSE dp.jumlah
-              END), 0) as total_terjual
+    $query = "SELECT b.id, b.nama_barang, b.unit_type, b.isi_renteng, b.stok,
+              COALESCE(SUM(
+                  CASE
+                      WHEN p.id IS NULL THEN 0
+                      WHEN dp.unit = 'renteng' THEN dp.jumlah * GREATEST(b.isi_renteng, 1)
+                      WHEN dp.unit = '1 kg' THEN dp.jumlah * 1000
+                      WHEN dp.unit IN ('gram', 'gram (custom)') THEN dp.jumlah
+                      ELSE dp.jumlah
+                  END
+              ), 0) AS total_terjual
               FROM barang b
-              JOIN users u ON b.owner_id = u.id
               LEFT JOIN detail_penjualan dp ON b.id = dp.barang_id
-              LEFT JOIN penjualan p ON dp.penjualan_id = p.id AND p.tanggal >= DATE_SUB(CURDATE(), INTERVAL $interval_days DAY)
-              WHERE 1=1
-              $where_owner_and
-              $stok_filter
-              GROUP BY b.id
+              LEFT JOIN penjualan p ON dp.penjualan_id = p.id
+                  AND p.tanggal >= DATE_SUB(NOW(), INTERVAL $interval_days DAY)
+              WHERE 1=1 $stok_filter
+              GROUP BY b.id, b.nama_barang, b.unit_type, b.isi_renteng, b.stok
+              $having
               ORDER BY total_terjual $order_dir, b.nama_barang ASC
               LIMIT $limit";
 
     return mysqli_query($conn, $query);
 }
 
-// 3. FAST MOVING
-$fast_mingguan = getMovingItems($conn, $where_owner_and, 7, true);
-$fast_bulanan = getMovingItems($conn, $where_owner_and, 30, true);
+function formatTerjualLabel($row)
+{
+    $qty = formatQty($row['total_terjual']);
+    if (($row['unit_type'] ?? '') === 'renteng' && (int)($row['isi_renteng'] ?? 0) > 0) {
+        $renteng = formatQty($row['total_terjual'] / max((int)$row['isi_renteng'], 1));
+        return $qty . ' pcs (~' . $renteng . ' renteng)';
+    }
+    return $qty . ' ' . unitLabel($row['unit_type'] ?? 'pcs');
+}
 
-// 4. SLOW MOVING
-$slow_mingguan = getMovingItems($conn, $where_owner_and, 7, false);
-$slow_bulanan = getMovingItems($conn, $where_owner_and, 30, false);
+function formatStokLabel($row)
+{
+    if (($row['unit_type'] ?? '') === 'renteng' && (int)($row['isi_renteng'] ?? 0) > 0) {
+        return formatQty($row['stok'] / max((int)$row['isi_renteng'], 1)) . ' renteng';
+    }
+    return formatQty($row['stok']) . ' ' . unitLabel($row['unit_type'] ?? 'pcs');
+}
 
+$fast_mingguan = getMovingItems($conn, 7, true);
+$fast_bulanan = getMovingItems($conn, 30, true);
+$slow_mingguan = getMovingItems($conn, 7, false);
+$slow_bulanan = getMovingItems($conn, 30, false);
+
+$pageTitle = 'Analisis Stok - Toko Rahmat Jaya';
+$extraHead = '<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">';
+require_once 'includes/head.php';
+$navTitle = 'Analisis Stok';
+$navBackUrl = 'index';
+require_once 'includes/navbar.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" sizes="16x16" href="icons/16×16.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/32×32.png">
-    <link rel="icon" type="image/png" sizes="48x48" href="icons/48×48.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/192×192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="icons/512×512.png">
-    <link rel="apple-touch-icon" href="icons/180×180.png">
-    <title>Analisis Stok - Toko Rahmat Jaya</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
-    <script>
-        function showTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('.tab-btn').forEach(el => {
-                el.classList.remove('border-blue-500', 'text-blue-600', 'bg-blue-50');
-                el.classList.add('border-transparent', 'text-gray-500');
-            });
-            document.getElementById(tabId).classList.remove('hidden');
-            document.getElementById('btn-' + tabId).classList.remove('border-transparent', 'text-gray-500');
-            document.getElementById('btn-' + tabId).classList.add('border-blue-500', 'text-blue-600', 'bg-blue-50');
-        }
-    </script>
-</head>
-
-<body class="bg-gray-100 min-h-screen">
-    <nav class="bg-blue-600 text-white p-4 shadow-md">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-bold flex items-center gap-2"><i class="ph ph-trend-up"></i> Analisis Stok</h1>
-            <a href="index" class="bg-blue-700 px-4 py-2 rounded-lg hover:bg-blue-800 transition flex items-center gap-2">
-                <i class="ph ph-arrow-left"></i> Kembali
-            </a>
-        </div>
-    </nav>
-
-    <div class="container mx-auto p-4 max-w-6xl">
-        <!-- Tab Navigation -->
-        <div class="flex border-b mb-6 bg-white rounded-t-lg shadow-sm overflow-x-auto">
-            <button id="btn-tab-alert" onclick="showTab('tab-alert')" class="tab-btn px-6 py-4 font-semibold border-b-2 border-blue-500 text-blue-600 bg-blue-50 flex items-center gap-2 whitespace-nowrap transition">
-                <i class="ph ph-warning-circle text-lg"></i> Alert Stok
-            </button>
-            <button id="btn-tab-fast" onclick="showTab('tab-fast')" class="tab-btn px-6 py-4 font-semibold border-b-2 border-transparent text-gray-500 hover:bg-gray-50 flex items-center gap-2 whitespace-nowrap transition">
-                <i class="ph ph-rocket text-lg"></i> Fast Moving (Laris)
-            </button>
-            <button id="btn-tab-slow" onclick="showTab('tab-slow')" class="tab-btn px-6 py-4 font-semibold border-b-2 border-transparent text-gray-500 hover:bg-gray-50 flex items-center gap-2 whitespace-nowrap transition">
-                <i class="ph ph-snail text-lg"></i> Slow Moving (Lama Terjual)
-            </button>
-        </div>
-
-        <!-- TAB: ALERT STOK -->
-        <div id="tab-alert" class="tab-content">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Stok Habis -->
-                <div class="bg-white rounded-lg shadow-md border-t-4 border-red-500 overflow-hidden">
-                    <div class="p-4 bg-red-50 border-b flex items-center gap-2">
-                        <i class="ph ph-x-circle text-red-600 text-xl"></i>
-                        <h2 class="font-bold text-red-800">Barang Habis (Stok 0)</h2>
-                    </div>
-                    <div class="p-4">
-                        <?php if (mysqli_num_rows($result_habis) > 0): ?>
-                            <ul class="divide-y">
-                                <?php while ($row = mysqli_fetch_assoc($result_habis)): ?>
-                                    <li class="py-3 flex justify-between items-center">
-                                        <div>
-                                            <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
-                                            <!-- <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama'] ?? ''); ?></div> -->
-                                        </div>
-                                        <a href="stok_masuk" class="text-xs bg-red-100 text-red-700 px-3 py-1 rounded hover:bg-red-200 transition">Restock</a>
-                                    </li>
-                                <?php endwhile; ?>
-                            </ul>
-                        <?php else: ?>
-                            <p class="text-center text-gray-500 py-4">Aman. Tidak ada barang yang habis.</p>
-                        <?php endif; ?>
-                    </div>
-                </div>
-
-                <!-- Hampir Habis -->
-                <div class="bg-white rounded-lg shadow-md border-t-4 border-orange-400 overflow-hidden">
-                    <div class="p-4 bg-orange-50 border-b flex items-center gap-2">
-                        <i class="ph ph-warning text-orange-600 text-xl"></i>
-                        <h2 class="font-bold text-orange-800">Hampir Habis</h2>
-                    </div>
-                    <div class="p-4">
-                        <?php if (mysqli_num_rows($result_hampir_habis) > 0): ?>
-                            <ul class="divide-y">
-                                <?php while ($row = mysqli_fetch_assoc($result_hampir_habis)): ?>
-                                    <li class="py-3 flex justify-between items-center">
-                                        <div>
-                                            <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
-                                            <!-- <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama'] ?? ''); ?></div> -->
-                                        </div>
-                                        <div class="text-sm font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded">
-                                            Sisa: <?php echo formatQty($row['stok']) . ' ' . unitLabel($row['unit_type']); ?>
-                                        </div>
-                                    </li>
-                                <?php endwhile; ?>
-                            </ul>
-                        <?php else: ?>
-                            <p class="text-center text-gray-500 py-4">Aman. Stok masih cukup untuk semua barang.</p>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB: FAST MOVING -->
-        <div id="tab-fast" class="tab-content hidden">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Mingguan -->
-                <div class="bg-white rounded-lg shadow-md overflow-hidden">
-                    <div class="p-4 bg-green-50 border-b flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <i class="ph ph-lightning text-green-600 text-xl"></i>
-                            <h2 class="font-bold text-green-800">Top Laris (7 Hari Terakhir)</h2>
-                        </div>
-                    </div>
-                    <div class="p-0">
-                        <table class="w-full text-left text-sm">
-                            <thead class="bg-gray-100 text-gray-600">
-                                <tr>
-                                    <th class="px-4 py-2">Barang</th>
-                                    <th class="px-4 py-2 text-right">Total Terjual</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php $has_fast_mingguan = false; ?>
-                                <?php while ($row = mysqli_fetch_assoc($fast_mingguan)): ?>
-                                    <?php if ($row['total_terjual'] > 0): ?>
-                                        <?php $has_fast_mingguan = true; ?>
-                                        <tr class="border-b">
-                                            <td class="px-4 py-3">
-                                                <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
-                                                <!-- <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama']); ?></div> -->
-                                            </td>
-                                            <td class="px-4 py-3 text-right font-bold text-green-600">
-                                                <?php echo formatQty($row['total_terjual']) . ' ' . unitLabel($row['unit_type']); ?>
-                                            </td>
-                                        </tr>
-                                    <?php endif; ?>
-                                <?php endwhile; ?>
-                                <?php if (!$has_fast_mingguan): ?>
-                                    <tr>
-                                        <td colspan="2" class="px-4 py-6 text-center text-gray-500">Belum ada barang terjual dalam 7 hari terakhir</td>
-                                    </tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Bulanan -->
-                <div class="bg-white rounded-lg shadow-md overflow-hidden">
-                    <div class="p-4 bg-blue-50 border-b flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <i class="ph ph-star text-blue-600 text-xl"></i>
-                            <h2 class="font-bold text-blue-800">Top Laris (30 Hari Terakhir)</h2>
-                        </div>
-                    </div>
-                    <div class="p-0">
-                        <table class="w-full text-left text-sm">
-                            <thead class="bg-gray-100 text-gray-600">
-                                <tr>
-                                    <th class="px-4 py-2">Barang</th>
-                                    <th class="px-4 py-2 text-right">Total Terjual</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php $has_fast_bulanan = false; ?>
-                                <?php while ($row = mysqli_fetch_assoc($fast_bulanan)): ?>
-                                    <?php if ($row['total_terjual'] > 0): ?>
-                                        <?php $has_fast_bulanan = true; ?>
-                                        <tr class="border-b">
-                                            <td class="px-4 py-3">
-                                                <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
-                                                <!-- <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama']); ?></div> -->
-                                            </td>
-                                            <td class="px-4 py-3 text-right font-bold text-blue-600">
-                                                <?php echo formatQty($row['total_terjual']) . ' ' . unitLabel($row['unit_type']); ?>
-                                            </td>
-                                        </tr>
-                                    <?php endif; ?>
-                                <?php endwhile; ?>
-                                <?php if (!$has_fast_bulanan): ?>
-                                    <tr>
-                                        <td colspan="2" class="px-4 py-6 text-center text-gray-500">Belum ada barang terjual dalam 30 hari terakhir</td>
-                                    </tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB: SLOW MOVING -->
-        <div id="tab-slow" class="tab-content hidden">
-            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded shadow-sm text-yellow-800 text-sm">
-                <i class="ph ph-info font-bold"></i> Menampilkan barang yang <b>paling sedikit (atau belum pernah) terjual</b> dalam periode waktu tertentu. Berguna untuk evaluasi produk yang kurang laku.
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Mingguan -->
-                <div class="bg-white rounded-lg shadow-md overflow-hidden">
-                    <div class="p-4 bg-gray-50 border-b flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <i class="ph ph-hourglass-low text-gray-600 text-xl"></i>
-                            <h2 class="font-bold text-gray-800">Kurang Laku (7 Hari Terakhir)</h2>
-                        </div>
-                    </div>
-                    <div class="p-0">
-                        <table class="w-full text-left text-sm">
-                            <thead class="bg-gray-100 text-gray-600">
-                                <tr>
-                                    <th class="px-4 py-2">Barang</th>
-                                    <th class="px-4 py-2 text-center">Stok Saat Ini</th>
-                                    <th class="px-4 py-2 text-right">Total Terjual</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php while ($row = mysqli_fetch_assoc($slow_mingguan)): ?>
-                                    <tr class="border-b">
-                                        <td class="px-4 py-3">
-                                            <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
-                                            <!-- <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama']); ?></div> -->
-                                        </td>
-                                        <td class="px-4 py-3 text-center text-gray-600">
-                                            <?php echo formatQty($row['stok']) . ' ' . unitLabel($row['unit_type']); ?>
-                                        </td>
-                                        <td class="px-4 py-3 text-right font-bold <?php echo $row['total_terjual'] == 0 ? 'text-red-500' : 'text-gray-700'; ?>">
-                                            <?php echo formatQty($row['total_terjual']) . ' ' . unitLabel($row['unit_type']); ?>
-                                        </td>
-                                    </tr>
-                                <?php endwhile; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Bulanan -->
-                <div class="bg-white rounded-lg shadow-md overflow-hidden">
-                    <div class="p-4 bg-gray-50 border-b flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <i class="ph ph-calendar-blank text-gray-600 text-xl"></i>
-                            <h2 class="font-bold text-gray-800">Kurang Laku (30 Hari Terakhir)</h2>
-                        </div>
-                    </div>
-                    <div class="p-0">
-                        <table class="w-full text-left text-sm">
-                            <thead class="bg-gray-100 text-gray-600">
-                                <tr>
-                                    <th class="px-4 py-2">Barang</th>
-                                    <th class="px-4 py-2 text-center">Stok Saat Ini</th>
-                                    <th class="px-4 py-2 text-right">Total Terjual</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php while ($row = mysqli_fetch_assoc($slow_bulanan)): ?>
-                                    <tr class="border-b">
-                                        <td class="px-4 py-3">
-                                            <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
-                                            <!-- <div class="text-xs text-gray-500"><?php echo htmlspecialchars($row['owner_nama']); ?></div> -->
-                                        </td>
-                                        <td class="px-4 py-3 text-center text-gray-600">
-                                            <?php echo formatQty($row['stok']) . ' ' . unitLabel($row['unit_type']); ?>
-                                        </td>
-                                        <td class="px-4 py-3 text-right font-bold <?php echo $row['total_terjual'] == 0 ? 'text-red-500' : 'text-gray-700'; ?>">
-                                            <?php echo formatQty($row['total_terjual']) . ' ' . unitLabel($row['unit_type']); ?>
-                                        </td>
-                                    </tr>
-                                <?php endwhile; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
+<div class="app-container max-w-6xl">
+    <div class="app-tabs">
+        <button type="button" id="btn-tab-alert" onclick="showTab('tab-alert')" class="app-tab active">
+            <i class="ph ph-warning-circle"></i> Alert Stok
+        </button>
+        <button type="button" id="btn-tab-fast" onclick="showTab('tab-fast')" class="app-tab">
+            <i class="ph ph-rocket"></i> Fast Moving
+        </button>
+        <button type="button" id="btn-tab-slow" onclick="showTab('tab-slow')" class="app-tab">
+            <i class="ph ph-snail"></i> Slow Moving
+        </button>
     </div>
-</body>
 
-</html>
+    <div id="tab-alert" class="tab-content">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="app-panel overflow-hidden border-t-4 border-t-red-500">
+                <div class="app-panel-header !bg-red-50">
+                    <span class="app-panel-title text-red-800"><i class="ph ph-x-circle"></i> Barang Habis</span>
+                </div>
+                <div class="p-4">
+                <table class="w-full analisis-table" id="tableHabis">
+                    <thead><tr class="text-left text-sm text-gray-600"><th>Barang</th><th></th></tr></thead>
+                    <tbody>
+                        <?php if (mysqli_num_rows($result_habis) > 0): ?>
+                            <?php while ($row = mysqli_fetch_assoc($result_habis)): ?>
+                                <tr>
+                                    <td class="py-2 font-medium"><?php echo htmlspecialchars($row['nama_barang']); ?></td>
+                                    <td class="py-2 text-right"><a href="stok_masuk" class="btn btn-secondary !py-1 !px-2 text-xs">Restock</a></td>
+                                </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <tr><td colspan="2" class="py-4 text-center text-gray-500">Tidak ada barang habis.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+                </div>
+            </div>
+            <div class="app-panel overflow-hidden border-t-4 border-t-orange-400">
+                <div class="app-panel-header !bg-orange-50">
+                    <span class="app-panel-title text-orange-800"><i class="ph ph-warning"></i> Hampir Habis</span>
+                </div>
+                <div class="p-4">
+                <table class="w-full analisis-table" id="tableHampir">
+                    <thead><tr class="text-left text-sm text-gray-600"><th>Barang</th><th class="text-right">Sisa</th></tr></thead>
+                    <tbody>
+                        <?php if (mysqli_num_rows($result_hampir_habis) > 0): ?>
+                            <?php while ($row = mysqli_fetch_assoc($result_hampir_habis)): ?>
+                                <tr>
+                                    <td class="py-2 font-medium"><?php echo htmlspecialchars($row['nama_barang']); ?></td>
+                                    <td class="py-2 text-right text-orange-600 font-semibold"><?php echo formatStokLabel($row); ?></td>
+                                </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <tr><td colspan="2" class="py-4 text-center text-gray-500">Stok masih aman.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-fast" class="tab-content hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <?php
+            $fast_tables = [
+                ['id' => 'fastMinggu', 'title' => 'Top Laris (7 Hari)', 'result' => $fast_mingguan],
+                ['id' => 'fastBulan', 'title' => 'Top Laris (30 Hari)', 'result' => $fast_bulanan],
+            ];
+            foreach ($fast_tables as $ft):
+            ?>
+            <div class="app-panel overflow-hidden">
+                <div class="app-panel-header !bg-emerald-50">
+                    <span class="app-panel-title text-emerald-800"><?php echo $ft['title']; ?></span>
+                </div>
+                <div class="p-4">
+                <table class="w-full analisis-table" id="<?php echo $ft['id']; ?>">
+                    <thead><tr class="text-sm text-gray-600"><th>Barang</th><th class="text-right">Terjual</th></tr></thead>
+                    <tbody>
+                        <?php if (mysqli_num_rows($ft['result']) > 0): ?>
+                            <?php while ($row = mysqli_fetch_assoc($ft['result'])): ?>
+                                <tr>
+                                    <td class="py-2"><?php echo htmlspecialchars($row['nama_barang']); ?></td>
+                                    <td class="py-2 text-right font-semibold text-green-600"><?php echo formatTerjualLabel($row); ?></td>
+                                </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <tr><td colspan="2" class="py-4 text-center text-gray-500">Belum ada penjualan.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+
+    <div id="tab-slow" class="tab-content hidden">
+        <p class="app-alert app-alert-info mb-4">
+            Barang dengan penjualan paling sedikit dalam periode tertentu (stok &gt; 0).
+        </p>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <?php
+            $slow_tables = [
+                ['id' => 'slowMinggu', 'title' => 'Kurang Laku (7 Hari)', 'result' => $slow_mingguan],
+                ['id' => 'slowBulan', 'title' => 'Kurang Laku (30 Hari)', 'result' => $slow_bulanan],
+            ];
+            foreach ($slow_tables as $st):
+            ?>
+            <div class="app-panel overflow-hidden">
+                <div class="app-panel-header">
+                    <span class="app-panel-title"><?php echo $st['title']; ?></span>
+                </div>
+                <div class="p-4">
+                <table class="w-full analisis-table" id="<?php echo $st['id']; ?>">
+                    <thead><tr class="text-sm text-gray-600"><th>Barang</th><th class="text-center">Stok</th><th class="text-right">Terjual</th></tr></thead>
+                    <tbody>
+                        <?php while ($row = mysqli_fetch_assoc($st['result'])): ?>
+                            <tr>
+                                <td class="py-2"><?php echo htmlspecialchars($row['nama_barang']); ?></td>
+                                <td class="py-2 text-center text-gray-600"><?php echo formatStokLabel($row); ?></td>
+                                <td class="py-2 text-right font-semibold <?php echo $row['total_terjual'] == 0 ? 'text-red-500' : 'text-gray-700'; ?>"><?php echo formatTerjualLabel($row); ?></td>
+                            </tr>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</div>
+
+<script>
+function showTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.app-tab').forEach(el => el.classList.remove('active'));
+    document.getElementById(tabId).classList.remove('hidden');
+    document.getElementById('btn-' + tabId).classList.add('active');
+}
+</script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script>
+$(function() {
+    $('.analisis-table').each(function() {
+        if ($(this).find('tbody tr td[colspan]').length) return;
+        $(this).DataTable({
+            pageLength: 10,
+            searching: true,
+            language: { url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/id.json' }
+        });
+    });
+});
+</script>
+<?php require_once 'includes/footer.php'; ?>

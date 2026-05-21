@@ -1,4 +1,13 @@
 <?php
+// Sesi browser bertahan 30 hari (sama dengan batas login ulang tanpa password).
+$session_lifetime = 30 * 24 * 60 * 60;
+ini_set('session.gc_maxlifetime', (string)$session_lifetime);
+session_set_cookie_params([
+    'lifetime' => $session_lifetime,
+    'path' => '/',
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
 session_start();
 
 // Set timezone to GMT+7 (Jakarta, Indonesia)
@@ -40,12 +49,6 @@ function ensureBarangSchema($conn)
     }
     if (!isset($columns['isi_renteng'])) {
         $alterParts[] = "ADD COLUMN isi_renteng INT NOT NULL DEFAULT 0 AFTER unit_type";
-    }
-    if (!isset($columns['isi_pax'])) {
-        $alterParts[] = "ADD COLUMN isi_pax INT NOT NULL DEFAULT 0 AFTER isi_renteng";
-    }
-    if (!isset($columns['isi_slop'])) {
-        $alterParts[] = "ADD COLUMN isi_slop INT NOT NULL DEFAULT 0 AFTER isi_pax";
     }
     if (!isset($columns['harga_jual_renteng'])) {
         $alterParts[] = "ADD COLUMN harga_jual_renteng DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER harga_jual";
@@ -96,10 +99,8 @@ function ensureBarangSchema($conn)
         jumlah_tambah DECIMAL(10,2) NOT NULL DEFAULT 0,
         harga_beli DECIMAL(10,2) NOT NULL DEFAULT 0,
         harga_jual DECIMAL(10,2) NOT NULL DEFAULT 0,
-        owner_id INT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (barang_id) REFERENCES barang(id) ON DELETE CASCADE,
-        FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+        FOREIGN KEY (barang_id) REFERENCES barang(id) ON DELETE CASCADE
     )";
     mysqli_query($conn, $sql_stok_masuk);
 }
@@ -115,7 +116,7 @@ function ensureUsersSchema($conn)
     }
 
     if (!isset($columns['last_login'])) {
-        mysqli_query($conn, "ALTER TABLE users ADD COLUMN last_login TIMESTAMP NULL AFTER role");
+        mysqli_query($conn, "ALTER TABLE users ADD COLUMN last_login TIMESTAMP NULL");
     }
 }
 
@@ -146,18 +147,10 @@ function isLoggedIn()
     return isset($_SESSION['user_id']);
 }
 
-// Function untuk cek permission
-function checkPermission($owner_id)
+/** @deprecated Semua user login punya akses penuh; tetap ada untuk kompatibilitas. */
+function checkPermission($owner_id = null)
 {
-    if (!isLoggedIn()) {
-        return false;
-    }
-    // Jika user adalah anak (role='anak'), bisa akses semua
-    if ($_SESSION['role'] == 'anak') {
-        return true;
-    }
-    // Jika user adalah ibu, hanya bisa akses miliknya sendiri
-    return $_SESSION['user_id'] == $owner_id;
+    return isLoggedIn();
 }
 
 // Redirect jika belum login
@@ -170,8 +163,7 @@ function requireLogin()
         exit();
     }
 
-    // Cek apakah session sudah expired (30 hari = 2592000 detik)
-    $session_timeout = 30 * 24 * 60 * 60; // 30 hari
+    $session_timeout = getSessionTimeoutSeconds();
     $user_id = $_SESSION['user_id'];
 
     // Ambil last_login dari database
@@ -236,6 +228,8 @@ function formatTanggal($tanggal)
         return '-';
     }
 
+    $tanggal = substr($tanggal, 0, 10);
+
     $bulan = [
         1 => 'Januari',
         'Februari',
@@ -275,4 +269,129 @@ function getDateTime()
 function getCurrentDate()
 {
     return date('Y-m-d');
+}
+
+/** Durasi login ulang tanpa password (detik). */
+function getSessionTimeoutSeconds()
+{
+    return 30 * 24 * 60 * 60; // 30 hari
+}
+
+/**
+ * Hitung modal (HPP) dari satu baris detail penjualan.
+ */
+function hitungModalDetail($row)
+{
+    $modal_satuan = (float)($row['harga_beli'] ?? 0);
+    $jumlah = (float)($row['jumlah'] ?? 0);
+    $unit = $row['unit'] ?? 'pcs';
+    $unit_type = $row['unit_type'] ?? 'pcs';
+
+    if ($unit_type === 'gram' || $unit === 'gram' || $unit === 'gram (custom)') {
+        return ($modal_satuan / 1000) * $jumlah;
+    }
+
+    if ($unit === 'renteng') {
+        $jumlah_pcs = $jumlah * max((int)($row['isi_renteng'] ?? 0), 1);
+        return $modal_satuan * $jumlah_pcs;
+    }
+
+    if ($unit === '1 kg') {
+        return ($modal_satuan / 1000) * ($jumlah * 1000);
+    }
+
+    return $modal_satuan * $jumlah;
+}
+
+/**
+ * Nilai aset stok saat ini (harga beli / potensi jual).
+ */
+function hitungNilaiStokBarang($row, $field = 'harga_beli')
+{
+    $stok = (float)($row['stok'] ?? 0);
+    $unit_type = $row['unit_type'] ?? 'pcs';
+    $isi_renteng = max((int)($row['isi_renteng'] ?? 0), 0);
+
+    if ($unit_type === 'gram') {
+        return ($stok / 1000) * (float)($row[$field] ?? 0);
+    }
+
+    if ($unit_type === 'renteng' && $isi_renteng > 0 && $field !== 'harga_beli') {
+        $harga_renteng = (float)($row['harga_jual_renteng'] ?? 0);
+        $harga_pcs = (float)(($row['harga_jual_pcs'] ?? 0) > 0 ? $row['harga_jual_pcs'] : ($row['harga_jual'] ?? 0));
+        $renteng_penuh = (int)floor($stok / $isi_renteng);
+        $sisa_pcs = $stok - ($renteng_penuh * $isi_renteng);
+        if ($harga_renteng > 0) {
+            return ($renteng_penuh * $harga_renteng) + ($sisa_pcs * $harga_pcs);
+        }
+        return $stok * $harga_pcs;
+    }
+
+    $harga = (float)($row['harga_beli'] ?? 0);
+    if ($field !== 'harga_beli') {
+        $harga = (float)(($row['harga_jual_pcs'] ?? 0) > 0 ? $row['harga_jual_pcs'] : ($row['harga_jual'] ?? 0));
+    }
+
+    return $stok * $harga;
+}
+
+/**
+ * Statistik dashboard.
+ */
+function getDashboardStats($conn)
+{
+    $today = getCurrentDate();
+    $month = date('Y-m');
+
+    $total_today = 0;
+    $q = mysqli_query($conn, "SELECT COALESCE(SUM(total_bayar),0) AS total FROM penjualan WHERE DATE(tanggal) = '$today'");
+    if ($q) {
+        $total_today = (float)(mysqli_fetch_assoc($q)['total'] ?? 0);
+    }
+
+    $total_month = 0;
+    $q = mysqli_query($conn, "SELECT COALESCE(SUM(total_bayar),0) AS total FROM penjualan WHERE DATE_FORMAT(tanggal, '%Y-%m') = '$month'");
+    if ($q) {
+        $total_month = (float)(mysqli_fetch_assoc($q)['total'] ?? 0);
+    }
+
+    $total_stok = 0;
+    $q = mysqli_query($conn, "SELECT COUNT(*) AS total FROM barang");
+    if ($q) {
+        $total_stok = (int)(mysqli_fetch_assoc($q)['total'] ?? 0);
+    }
+
+    $total_pendapatan_today = 0;
+    $total_modal_today = 0;
+    $q = mysqli_query($conn, "SELECT dp.unit, dp.jumlah, dp.subtotal, b.harga_beli, b.isi_renteng, b.unit_type
+        FROM penjualan p
+        JOIN detail_penjualan dp ON p.id = dp.penjualan_id
+        JOIN barang b ON dp.barang_id = b.id
+        WHERE DATE(p.tanggal) = '$today'");
+    if ($q) {
+        while ($row = mysqli_fetch_assoc($q)) {
+            $total_pendapatan_today += (float)$row['subtotal'];
+            $total_modal_today += hitungModalDetail($row);
+        }
+    }
+    $total_keuntungan_today = $total_pendapatan_today - $total_modal_today;
+
+    $aset_beli = 0;
+    $aset_jual = 0;
+    $q = mysqli_query($conn, "SELECT * FROM barang");
+    if ($q) {
+        while ($row = mysqli_fetch_assoc($q)) {
+            $aset_beli += hitungNilaiStokBarang($row, 'harga_beli');
+            $aset_jual += hitungNilaiStokBarang($row, 'harga_jual');
+        }
+    }
+
+    return compact(
+        'total_today',
+        'total_month',
+        'total_stok',
+        'total_keuntungan_today',
+        'aset_beli',
+        'aset_jual'
+    );
 }

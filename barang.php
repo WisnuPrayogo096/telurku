@@ -2,8 +2,6 @@
 require_once 'config.php';
 requireLogin();
 
-$user_id = (int)$_SESSION['user_id'];
-$role = $_SESSION['role'];
 $success = '';
 $error = '';
 
@@ -20,8 +18,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $harga_jual_renteng = 0;
     $harga_jual_pcs = 0;
     $isi_renteng = 0;
-    $isi_pax = 0;
-    $isi_slop = 0;
     $stok = 0;
 
     if ($unit_type === 'gram') {
@@ -50,35 +46,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
-    $owner_id = $user_id;
-    if (!empty($_POST['id'])) {
-        $id_for_owner = (int)$_POST['id'];
-        $owner_query = mysqli_query($conn, "SELECT owner_id FROM barang WHERE id = $id_for_owner");
-        if ($owner_row = mysqli_fetch_assoc($owner_query)) {
-            $owner_id = (int)$owner_row['owner_id'];
-        }
-    }
-
-    // Cek permission
     if ($error) {
         // Error validasi sudah diset di atas.
-    } elseif (!checkPermission($owner_id)) {
-        $error = 'Anda tidak memiliki izin untuk ini!';
     } else {
         if (isset($_POST['id']) && !empty($_POST['id'])) {
             // Update
             $id = $_POST['id'];
             $query = "UPDATE barang 
-                      SET nama_barang=?, unit_type=?, isi_renteng=?, isi_pax=?, isi_slop=?, harga_beli=?, harga_jual=?, harga_jual_renteng=?, harga_jual_pcs=?, stok=?, owner_id=? 
+                      SET nama_barang=?, unit_type=?, isi_renteng=?, harga_beli=?, harga_jual=?, harga_jual_renteng=?, harga_jual_pcs=?, stok=? 
                       WHERE id=?";
             $stmt = mysqli_prepare($conn, $query);
-            mysqli_stmt_bind_param($stmt, "ssiiidddddii", $nama_barang, $unit_type, $isi_renteng, $isi_pax, $isi_slop, $harga_beli, $harga_jual, $harga_jual_renteng, $harga_jual_pcs, $stok, $owner_id, $id);
+            mysqli_stmt_bind_param($stmt, "ssidddddi", $nama_barang, $unit_type, $isi_renteng, $harga_beli, $harga_jual, $harga_jual_renteng, $harga_jual_pcs, $stok, $id);
         } else {
             // Insert
-            $query = "INSERT INTO barang (nama_barang, unit_type, isi_renteng, isi_pax, isi_slop, harga_beli, harga_jual, harga_jual_renteng, harga_jual_pcs, stok, owner_id) 
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $query = "INSERT INTO barang (nama_barang, unit_type, isi_renteng, harga_beli, harga_jual, harga_jual_renteng, harga_jual_pcs, stok) 
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = mysqli_prepare($conn, $query);
-            mysqli_stmt_bind_param($stmt, "ssiiidddddi", $nama_barang, $unit_type, $isi_renteng, $isi_pax, $isi_slop, $harga_beli, $harga_jual, $harga_jual_renteng, $harga_jual_pcs, $stok, $owner_id);
+            mysqli_stmt_bind_param($stmt, "ssiddddd", $nama_barang, $unit_type, $isi_renteng, $harga_beli, $harga_jual, $harga_jual_renteng, $harga_jual_pcs, $stok);
         }
 
         if (mysqli_stmt_execute($stmt)) {
@@ -93,88 +77,37 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 if (isset($_GET['delete'])) {
     $id = (int)$_GET['delete'];
 
-    // Cek ownership
-    $check = mysqli_query($conn, "SELECT owner_id FROM barang WHERE id=$id");
+    $check = mysqli_query($conn, "SELECT id FROM barang WHERE id=$id");
     $barang = mysqli_fetch_assoc($check);
 
     if (!$barang) {
         $error = 'Data barang tidak ditemukan!';
-    } elseif (checkPermission($barang['owner_id'])) {
+    } else {
         mysqli_query($conn, "DELETE FROM barang WHERE id=$id");
         $success = 'Data berhasil dihapus!';
-    } else {
-        $error = 'Anda tidak memiliki izin untuk menghapus!';
     }
 }
 
 // Ambil data barang
-if ($role == 'anak') {
-    $query = "SELECT b.*, u.nama as owner_nama FROM barang b JOIN users u ON b.owner_id = u.id ORDER BY b.id DESC";
-} else {
-    $query = "SELECT b.*, u.nama as owner_nama FROM barang b JOIN users u ON b.owner_id = u.id WHERE b.owner_id = $user_id ORDER BY b.id DESC";
-}
+$query = "SELECT b.* FROM barang b ORDER BY b.id DESC";
 $result = mysqli_query($conn, $query);
-
-// Ambil list users untuk dropdown owner
-$users_query = mysqli_query($conn, "SELECT id, nama FROM users");
+$pageTitle = 'Data Barang - Toko Rahmat Jaya';
+$extraHead = '<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">';
+require_once 'includes/head.php';
+$navTitle = 'Data Barang';
+$navBackUrl = 'index';
+require_once 'includes/navbar.php';
+require_once 'includes/swal_flash.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" sizes="16x16" href="icons/16×16.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/32×32.png">
-    <link rel="icon" type="image/png" sizes="48x48" href="icons/48×48.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/192×192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="icons/512×512.png">
-    <link rel="apple-touch-icon" href="icons/180×180.png">
-    <title>Data Barang - Toko Rahmat Jaya</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
-    <style>
-        .modal-active {
-            overflow: hidden;
-        }
-    </style>
-</head>
-
-<body class="bg-gray-100">
-    <nav class="bg-blue-600 text-white p-4">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-bold">Data Barang</h1>
-            <a href="index" class="bg-blue-700 px-4 py-2 rounded hover:bg-blue-800">Kembali</a>
+<div class="app-container">
+    <div class="app-panel overflow-hidden">
+        <div class="app-panel-header">
+            <span class="app-panel-title"><i class="ph ph-package text-amber-600"></i> Daftar Barang</span>
+            <button type="button" onclick="openModal()" class="btn btn-primary">
+                <i class="ph ph-plus-circle"></i> Tambah Barang
+            </button>
         </div>
-    </nav>
-
-    <div class="container mx-auto p-4">
-        <?php if ($success): ?>
-            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-                <?php echo $success; ?>
-            </div>
-        <?php endif; ?>
-
-        <?php if ($error): ?>
-            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                <?php echo $error; ?>
-            </div>
-        <?php endif; ?>
-
-        <!-- Tabel Data -->
-        <div class="bg-white rounded-lg shadow overflow-hidden">
-            <div class="p-4 border-b bg-gray-50 flex flex-col md:flex-row justify-between items-center gap-4">
-                <button type="button" onclick="openModal()" class="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 shadow">
-                    <i class="ph ph-plus-circle"></i> Tambah Barang
-                </button>
-                <div class="w-full md:w-1/3 relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <i class="ph ph-magnifying-glass text-gray-400"></i>
-                    </div>
-                    <input type="text" id="searchInput" placeholder="Cari barang..." class="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 shadow-sm">
-                </div>
-            </div>
             <div class="overflow-x-auto">
                 <table class="w-full" id="barangTable">
                     <thead class="bg-gray-200">
@@ -195,11 +128,11 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
                         $no = 1;
                         while ($row = mysqli_fetch_assoc($result)):
                         ?>
-                            <tr class="border-b hover:bg-gray-50 barang-row">
+                            <tr class="border-b hover:bg-amber-50/40 barang-row">
                                 <td class="px-4 py-3"><?php echo $no++; ?></td>
                                 <td class="px-4 py-3 font-medium text-gray-800 row-nama"><?php echo htmlspecialchars($row['nama_barang']); ?></td>
                                 <td class="px-4 py-3 text-center">
-                                    <span class="px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                    <span class="badge badge-blue">
                                         <?php echo unitTypeLabel($row['unit_type'] ?? 'pcs'); ?>
                                     </span>
                                 </td>
@@ -214,32 +147,26 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
                                     <?php echo ($row['harga_jual_pcs'] ?? 0) > 0 ? formatRupiah($row['harga_jual_pcs']) : '-'; ?>
                                 </td>
                                 <td class="px-4 py-3 text-center">
-                                    <span class="<?php echo $row['stok'] < 10 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'; ?> px-3 py-1 rounded-full text-sm font-medium inline-block">
+                                    <span class="badge <?php echo $row['stok'] < 10 ? 'badge-red' : 'badge-green'; ?>">
                                         <?php echo (($row['unit_type'] ?? 'pcs') === 'renteng' && (int)$row['isi_renteng'] > 0) ? formatQty($row['stok'] / max((int)$row['isi_renteng'], 1)) . ' renteng' : formatQty($row['stok']) . ' ' . unitLabel($row['unit_type'] ?? 'pcs'); ?>
                                     </span>
                                     <?php if (($row['unit_type'] ?? 'pcs') === 'renteng' && $row['isi_renteng']): ?>
                                         <div class="text-xs text-gray-500 mt-1">
                                             <?php if ($row['isi_renteng']): ?>Per Renteng/Slop isi <?php echo $row['isi_renteng']; ?> pcs<?php endif; ?>
-                                            <?php if ($row['isi_pax']): ?><?php echo $row['isi_renteng'] ? ' · ' : ''; ?>Pax: <?php echo $row['isi_pax']; ?> pcs<?php endif; ?>
-                                            <?php if ($row['isi_slop']): ?><?php echo ($row['isi_renteng'] || $row['isi_pax']) ? ' · ' : ''; ?>Slop: <?php echo $row['isi_slop']; ?> pcs<?php endif; ?>
                                         </div>
                                     <?php endif; ?>
                                 </td>
-                                <td class="px-4 py-3 text-center">
-                                    <?php if (checkPermission($row['owner_id'])): ?>
-                                        <button type="button"
-                                            class="inline-flex items-center gap-1 text-blue-600 hover:underline mr-2"
-                                            onclick="editBarang(<?php echo htmlspecialchars(json_encode($row)); ?>)">
-                                            <i class="ph ph-pencil-simple"></i> Edit
-                                        </button>
-                                        <button type="button"
-                                            data-delete-id="<?php echo $row['id']; ?>"
-                                            class="delete-btn inline-flex items-center gap-1 text-red-600 hover:underline">
-                                            <i class="ph ph-trash"></i> Hapus
-                                        </button>
-                                    <?php else: ?>
-                                        <span class="text-gray-400">-</span>
-                                    <?php endif; ?>
+                                <td class="px-4 py-3 text-center whitespace-nowrap">
+                                    <button type="button"
+                                        class="inline-flex items-center gap-1 text-blue-600 hover:underline mr-2"
+                                        onclick='editBarang(<?php echo json_encode($row, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)'>
+                                        <i class="ph ph-pencil-simple"></i> Edit
+                                    </button>
+                                    <button type="button"
+                                        data-delete-id="<?php echo $row['id']; ?>"
+                                        class="delete-btn inline-flex items-center gap-1 text-red-600 hover:underline">
+                                        <i class="ph ph-trash"></i> Hapus
+                                    </button>
                                 </td>
                             </tr>
                         <?php endwhile; ?>
@@ -249,26 +176,22 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
         </div>
     </div>
 
-    <!-- Modal Form -->
-    <div id="modalForm" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-            <div class="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
+    <div id="modalForm" class="app-modal-backdrop hidden">
+        <div class="app-modal max-w-4xl max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+            <div class="app-modal-header shrink-0">
                 <h2 id="modalTitle" class="text-xl font-bold flex items-center gap-2">
-                    <i class="ph ph-plus-circle"></i> Tambah Barang
+                    <i class="ph ph-plus-circle text-amber-600"></i> Tambah Barang
                 </h2>
-                <button type="button" onclick="closeModal()" class="text-gray-500 hover:text-gray-700">
-                    <i class="ph ph-x text-2xl"></i>
-                </button>
+                <button type="button" onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="ph ph-x text-xl"></i></button>
             </div>
-            <div class="p-6 overflow-y-auto">
+            <div class="p-6 overflow-y-auto flex-1">
                 <form method="POST" action="" id="formBarang">
                     <input type="hidden" name="id" id="formId">
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-gray-700 font-medium mb-2">Nama Barang</label>
-                            <input type="text" name="nama_barang" id="nama_barang" required
-                                class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500 shadow-sm">
+                            <label class="app-label">Nama Barang</label>
+                            <input type="text" name="nama_barang" id="nama_barang" required class="app-input">
                         </div>
 
                         <div>
@@ -312,16 +235,6 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
                             <input type="number" name="isi_renteng" id="isiRenteng" min="0" placeholder="contoh: 12" value="0"
                                 class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500 shadow-sm">
                         </div>
-                        <div class="hidden">
-                            <label class="block text-gray-700 font-medium mb-2">Isi per Pax</label>
-                            <input type="number" name="isi_pax" id="isiPax" min="0" placeholder="contoh: 6" value="0"
-                                class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500 shadow-sm">
-                        </div>
-                        <div class="hidden">
-                            <label class="block text-gray-700 font-medium mb-2">Isi per Slop</label>
-                            <input type="number" name="isi_slop" id="isiSlop" min="0" placeholder="contoh: 10" value="0"
-                                class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500 shadow-sm">
-                        </div>
                     </div>
 
                     <div class="mt-4 grid grid-cols-1 gap-4">
@@ -334,16 +247,6 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
                             <div class="renteng-only">
                                 <label class="block text-gray-700 font-medium mb-1">Stok Renteng</label>
                                 <input type="number" min="0" step="0.001" name="stok_renteng" id="stokRenteng" value="0"
-                                    class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500 shadow-sm">
-                            </div>
-                            <div class="hidden">
-                                <label class="block text-gray-700 font-medium mb-1">Stok Pax</label>
-                                <input type="number" min="0" name="stok_pax" id="stokPax" value="0"
-                                    class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500 shadow-sm">
-                            </div>
-                            <div class="hidden">
-                                <label class="block text-gray-700 font-medium mb-1">Stok Slop</label>
-                                <input type="number" min="0" name="stok_slop" id="stokSlop" value="0"
                                     class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500 shadow-sm">
                             </div>
                         </div>
@@ -363,17 +266,14 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
                     <input type="hidden" name="stok" id="stokFinal" value="0">
 
                     <div class="mt-6 flex gap-2 justify-end border-t pt-4">
-                        <button type="button" onclick="closeModal()" class="px-6 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300">
-                            Batal
-                        </button>
-                        <button type="submit" class="flex items-center gap-2 bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 shadow">
-                            <i class="ph ph-floppy-disk"></i> Simpan
-                        </button>
+                        <button type="button" onclick="closeModal()" class="btn btn-secondary">Batal</button>
+                        <button type="submit" class="btn btn-primary"><i class="ph ph-floppy-disk"></i> Simpan</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
+</div>
 
     <script>
         // Form & Modal logic
@@ -396,12 +296,8 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
         const inputs = {
             stokEcer: document.getElementById('stokEcer'),
             stokRenteng: document.getElementById('stokRenteng'),
-            stokPax: document.getElementById('stokPax'),
-            stokSlop: document.getElementById('stokSlop'),
             stokGram: document.getElementById('stokGram'),
-            isiRenteng: document.getElementById('isiRenteng'),
-            isiPax: document.getElementById('isiPax'),
-            isiSlop: document.getElementById('isiSlop')
+            isiRenteng: document.getElementById('isiRenteng')
         };
 
         function openModal() {
@@ -417,12 +313,12 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
 
             updateVisibility();
             modal.classList.remove('hidden');
-            document.body.classList.add('modal-active');
+            document.body.style.overflow = 'hidden';
         }
 
         function closeModal() {
             modal.classList.add('hidden');
-            document.body.classList.remove('modal-active');
+            document.body.style.overflow = '';
         }
 
         function editBarang(data) {
@@ -441,8 +337,6 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
             document.getElementById('harga_jual_pcs').value = data.harga_jual_pcs > 0 ? data.harga_jual_pcs : data.harga_jual;
 
             inputs.isiRenteng.value = data.isi_renteng || 0;
-            inputs.isiPax.value = data.isi_pax || 0;
-            inputs.isiSlop.value = data.isi_slop || 0;
 
             // Mapping total stock based on unit_type
             if (unitTypeEl.value === 'gram') {
@@ -457,14 +351,11 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
                 inputs.stokEcer.value = data.stok || 0;
                 inputs.stokGram.value = 0;
             }
-            inputs.stokPax.value = 0;
-            inputs.stokSlop.value = 0;
-
             stokFinal.value = data.stok || 0;
 
             updateVisibility();
             modal.classList.remove('hidden');
-            document.body.classList.add('modal-active');
+            document.body.style.overflow = 'hidden';
         }
 
         function updateVisibility() {
@@ -519,19 +410,16 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
         unitTypeEl?.addEventListener('change', updateVisibility);
         Object.values(inputs).forEach(el => el?.addEventListener('input', computeStok));
 
-        // Search logic
-        const searchInput = document.getElementById('searchInput');
-        searchInput?.addEventListener('input', function(e) {
-            const term = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('.barang-row');
+    </script>
 
-            rows.forEach(row => {
-                const nama = row.querySelector('.row-nama').textContent.toLowerCase();
-                if (nama.includes(term)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+    <script>
+        $(function() {
+            $('#barangTable').DataTable({
+                pageLength: 25,
+                order: [[0, 'asc']],
+                language: { url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/id.json' }
             });
         });
     </script>
@@ -548,7 +436,7 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
                     showCancelButton: true,
                     confirmButtonText: 'Ya, hapus',
                     cancelButtonText: 'Batal',
-                    confirmButtonColor: '#ef4444',
+                    confirmButtonColor: '#dc2626',
                     cancelButtonColor: '#6b7280'
                 });
 
@@ -558,6 +446,4 @@ $users_query = mysqli_query($conn, "SELECT id, nama FROM users");
             });
         });
     </script>
-</body>
-
-</html>
+<?php require_once 'includes/footer.php'; ?>

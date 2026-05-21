@@ -2,9 +2,6 @@
 require_once 'config.php';
 requireLogin();
 
-$user_id = (int)$_SESSION['user_id'];
-$role = $_SESSION['role'];
-
 // Filter (escape untuk prevent SQL injection)
 $bulan = mysqli_real_escape_string($conn, $_GET['bulan'] ?? date('Y-m')); // Menggunakan timezone GMT+7 dari config.php
 
@@ -12,17 +9,10 @@ $bulan = mysqli_real_escape_string($conn, $_GET['bulan'] ?? date('Y-m')); // Men
 $query = "SELECT 
             p.id,
             p.tanggal,
-            p.total_bayar,
-            GROUP_CONCAT(DISTINCT u.nama) as pemilik_stok
+            p.total_bayar
           FROM penjualan p
-          JOIN detail_penjualan dp ON p.id = dp.penjualan_id
-          JOIN users u ON dp.owner_id = u.id
           WHERE p.metode_bayar = 'qris'
           AND DATE_FORMAT(p.tanggal, '%Y-%m') = '$bulan'";
-
-if ($role == 'ibu') {
-    $query .= " AND dp.owner_id = $user_id";
-}
 
 $query .= " GROUP BY p.id ORDER BY p.tanggal DESC";
 
@@ -30,104 +20,66 @@ $result = mysqli_query($conn, $query);
 
 // Total QRIS
 $total_query = "SELECT SUM(p.total_bayar) as total_qris
-                FROM penjualan p";
-
-if ($role == 'ibu') {
-    $total_query .= " JOIN detail_penjualan dp ON p.id = dp.penjualan_id
-                     WHERE p.metode_bayar = 'qris' 
-                     AND DATE_FORMAT(p.tanggal, '%Y-%m') = '$bulan'
-                     AND dp.owner_id = $user_id";
-} else {
-    $total_query .= " WHERE p.metode_bayar = 'qris' 
-                      AND DATE_FORMAT(p.tanggal, '%Y-%m') = '$bulan'";
-}
+                FROM penjualan p
+                WHERE p.metode_bayar = 'qris' 
+                AND DATE_FORMAT(p.tanggal, '%Y-%m') = '$bulan'";
 
 $total_result = mysqli_query($conn, $total_query);
 $total_qris = mysqli_fetch_assoc($total_result)['total_qris'] ?? 0;
 
 // Hitung jumlah transaksi
 $count_transaksi = mysqli_num_rows($result);
+$pageTitle = 'Laporan QRIS - Toko Rahmat Jaya';
+$extraHead = '<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">';
+require_once 'includes/head.php';
+$navTitle = 'Laporan Pembayaran QRIS';
+$navBackUrl = 'index';
+require_once 'includes/navbar.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" sizes="16x16" href="icons/16×16.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/32×32.png">
-    <link rel="icon" type="image/png" sizes="48x48" href="icons/48×48.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/192×192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="icons/512×512.png">
-    <link rel="apple-touch-icon" href="icons/180×180.png">
-    <title>Laporan QRIS - Toko Rahmat Jaya</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
-</head>
-
-<body class="bg-gray-100">
-    <nav class="bg-blue-600 text-white p-4">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-bold">Laporan Pembayaran QRIS</h1>
-            <a href="index" class="bg-blue-700 px-4 py-2 rounded hover:bg-blue-800">Kembali</a>
+<div class="app-container">
+    <div class="app-panel mb-6">
+        <div class="app-panel-header">
+            <span class="app-panel-title"><i class="ph ph-calendar text-amber-600"></i> Pilih Periode</span>
         </div>
-    </nav>
-
-    <div class="container mx-auto p-4">
-        <!-- Filter -->
-        <div class="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 class="text-lg font-bold mb-4">Pilih Periode</h2>
-            <form method="GET" action="" class="flex gap-4 items-end">
-                <div class="flex-1">
-                    <label class="block text-gray-700 font-medium mb-2">Bulan</label>
-                    <input type="month" name="bulan" value="<?php echo $bulan; ?>"
-                        class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+        <div class="app-panel-body">
+            <form method="GET" class="flex flex-col sm:flex-row gap-4 items-end">
+                <div class="flex-1 w-full">
+                    <label class="app-label">Bulan</label>
+                    <input type="month" name="bulan" value="<?php echo $bulan; ?>" class="app-input">
                 </div>
-                <button type="submit" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600">
-                    Tampilkan
-                </button>
+                <button type="submit" class="btn btn-primary w-full sm:w-auto"><i class="ph ph-magnifying-glass"></i> Tampilkan</button>
             </form>
         </div>
+    </div>
 
-        <!-- Summary -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-gray-600 text-sm mb-2">Total Transaksi QRIS</h3>
-                <p class="text-2xl font-bold text-purple-600"><?php echo $count_transaksi; ?> Transaksi</p>
-            </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-gray-600 text-sm mb-2">Total Penjualan QRIS</h3>
-                <p class="text-2xl font-bold text-green-600"><?php echo formatRupiah($total_qris); ?></p>
-            </div>
+    <div class="stat-grid !grid-cols-1 md:!grid-cols-2 mb-6">
+        <div class="stat-card stat-card--purple">
+            <div class="stat-card-icon"><i class="ph ph-qr-code"></i></div>
+            <div class="stat-card-label">Transaksi QRIS</div>
+            <div class="stat-card-value"><?php echo $count_transaksi; ?></div>
+            <div class="stat-card-hint">Bulan <?php echo $bulan; ?></div>
         </div>
-
-        <!-- Info -->
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <div class="flex items-start gap-2">
-                <span class="text-2xl text-blue-600"><i class="ph ph-device-mobile"></i></span>
-                <div>
-                    <h3 class="font-medium text-blue-900 mb-1">Tentang Laporan QRIS</h3>
-                    <p class="text-blue-800 text-sm">
-                        Laporan ini menampilkan semua transaksi yang dibayar menggunakan QRIS.
-                        <?php if ($role == 'ibu'): ?>
-                            Anda hanya melihat transaksi yang melibatkan stok Anda.
-                        <?php else: ?>
-                            Anda dapat melihat semua transaksi QRIS dari kedua pemilik stok.
-                        <?php endif; ?>
-                    </p>
-                </div>
-            </div>
+        <div class="stat-card stat-card--green">
+            <div class="stat-card-icon"><i class="ph ph-wallet"></i></div>
+            <div class="stat-card-label">Total QRIS</div>
+            <div class="stat-card-value"><?php echo formatRupiah($total_qris); ?></div>
+            <div class="stat-card-hint">Akumulasi pembayaran QRIS</div>
         </div>
+    </div>
 
-        <!-- Tabel Transaksi -->
-        <div class="bg-white rounded-lg shadow overflow-hidden">
+    <div class="app-alert app-alert-info mb-6">
+        <i class="ph ph-device-mobile text-xl"></i>
+        <span>Menampilkan semua transaksi dengan metode pembayaran <strong>QRIS</strong>.</span>
+    </div>
+
+    <div class="app-panel overflow-hidden">
             <div class="overflow-x-auto">
-                <table class="w-full">
+                <table class="w-full" id="qrisTable">
                     <thead class="bg-gray-200">
                         <tr>
                             <th class="px-4 py-3 text-left">No</th>
                             <th class="px-4 py-3 text-left">Tanggal</th>
-                            <th class="px-4 py-3 text-left">Pemilik Stok</th>
                             <th class="px-4 py-3 text-right">Total Bayar</th>
                             <th class="px-4 py-3 text-center">Detail</th>
                         </tr>
@@ -137,20 +89,9 @@ $count_transaksi = mysqli_num_rows($result);
                         $no = 1;
                         while ($row = mysqli_fetch_assoc($result)):
                         ?>
-                            <tr class="border-b hover:bg-gray-50">
+                            <tr class="border-b hover:bg-amber-50/40">
                                 <td class="px-4 py-3"><?php echo $no++; ?></td>
                                 <td class="px-4 py-3"><?php echo formatTanggal($row['tanggal']); ?></td>
-                                <td class="px-4 py-3">
-                                    <?php
-                                    $owners = explode(',', $row['pemilik_stok']);
-                                    foreach ($owners as $owner):
-                                    ?>
-                                        <span class="px-2 py-1 rounded-full text-xs font-medium mr-1
-                                    <?php echo trim($owner) == 'Ibu' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'; ?>">
-                                            <?php echo trim($owner); ?>
-                                        </span>
-                                    <?php endforeach; ?>
-                                </td>
                                 <td class="px-4 py-3 text-right font-medium text-green-600">
                                     <?php echo formatRupiah($row['total_bayar']); ?>
                                 </td>
@@ -165,7 +106,7 @@ $count_transaksi = mysqli_num_rows($result);
 
                         <?php if ($count_transaksi == 0): ?>
                             <tr>
-                                <td colspan="5" class="px-4 py-8 text-center text-gray-500">
+                                <td colspan="4" class="px-4 py-8 text-center text-gray-500">
                                     Tidak ada transaksi QRIS untuk bulan ini
                                 </td>
                             </tr>
@@ -174,7 +115,7 @@ $count_transaksi = mysqli_num_rows($result);
                     <?php if ($count_transaksi > 0): ?>
                         <tfoot class="bg-gray-100">
                             <tr class="font-bold">
-                                <td colspan="3" class="px-4 py-3 text-right">TOTAL</td>
+                                <td colspan="2" class="px-4 py-3 text-right">TOTAL</td>
                                 <td class="px-4 py-3 text-right text-green-600"><?php echo formatRupiah($total_qris); ?></td>
                                 <td></td>
                             </tr>
@@ -182,8 +123,17 @@ $count_transaksi = mysqli_num_rows($result);
                     <?php endif; ?>
                 </table>
             </div>
-        </div>
     </div>
-</body>
-
-</html>
+</div>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+    <script>
+        $(function() {
+            $('#qrisTable').DataTable({
+                pageLength: 25,
+                order: [[1, 'desc']],
+                language: { url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/id.json' }
+            });
+        });
+    </script>
+<?php require_once 'includes/footer.php'; ?>

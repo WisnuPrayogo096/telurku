@@ -3,9 +3,13 @@ require_once 'config.php';
 
 $error = '';
 
-// Cek apakah session expired
 if (isset($_GET['expired']) && $_GET['expired'] == 1) {
-    $error = 'Sesi Anda telah expired. Silakan login kembali!';
+    $error = 'Sesi Anda telah berakhir (lebih dari 30 hari sejak login terakhir). Silakan login kembali!';
+}
+
+if (isLoggedIn()) {
+    header('Location: index');
+    exit();
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -23,10 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['nama'] = $user['nama'];
-            $_SESSION['role'] = $user['role'];
-            $_SESSION['login_time'] = time(); // Menyimpan waktu login
+            $_SESSION['login_time'] = time();
 
-            // Update last_login di database untuk persistent session
             $user_id = $user['id'];
             $update_query = "UPDATE users SET last_login = NOW() WHERE id = ?";
             $update_stmt = mysqli_prepare($conn, $update_query);
@@ -35,61 +37,54 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             header("Location: index");
             exit();
-        } else {
-            $error = 'Password salah!';
         }
+        $error = 'Password salah!';
     } else {
         $error = 'Username tidak ditemukan!';
     }
 }
+
+$pageTitle = 'Login - Toko Rahmat Jaya';
+$bodyClass = 'login-body';
+require_once 'includes/head.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" sizes="16x16" href="icons/16×16.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/32×32.png">
-    <link rel="icon" type="image/png" sizes="48x48" href="icons/48×48.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/192×192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="icons/512×512.png">
-    <link rel="apple-touch-icon" href="icons/180×180.png">
-    <title>Login - Toko Rahmat Jaya</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
+<div class="min-h-screen flex items-center justify-center p-4 sm:p-6">
+    <div class="login-card">
+        <div class="login-logo"><?php $logoVariant = 'login'; require __DIR__ . '/includes/brand_logo.php'; ?></div>
+        <h1 class="text-2xl font-extrabold text-center text-slate-800 tracking-tight">Toko Rahmat Jaya</h1>
+        <p class="text-center text-sm text-slate-500 mt-2 mb-8">
+            Masuk ke sistem kasir &amp; stok.<br>
+            <span class="text-amber-700 font-medium">Sesi aktif 30 hari</span> setelah login.
+        </p>
 
-<body class="bg-gray-100">
-    <div class="min-h-screen flex items-center justify-center p-4">
-        <div class="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
-            <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Toko Rahmat Jaya</h1>
-
-            <?php if ($error): ?>
-                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                    <?php echo $error; ?>
-                </div>
-            <?php endif; ?>
-
-            <form method="POST" action="">
-                <div class="mb-6">
-                    <label class="block text-gray-700 text-lg font-medium mb-2">Username</label>
-                    <input type="text" name="username" required
-                        class="w-full px-4 py-3 text-lg border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
-                </div>
-
-                <div class="mb-6">
-                    <label class="block text-gray-700 text-lg font-medium mb-2">Password</label>
-                    <input type="password" name="password" required
-                        class="w-full px-4 py-3 text-lg border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
-                </div>
-
-                <button type="submit"
-                    class="w-full bg-blue-500 text-white text-lg font-medium py-3 rounded-lg hover:bg-blue-600 transition">
-                    Masuk
-                </button>
-            </form>
-        </div>
+        <form method="POST" action="" class="space-y-4">
+            <div>
+                <label class="app-label">Username</label>
+                <input type="text" name="username" required autofocus class="app-input" placeholder="Masukkan username">
+            </div>
+            <div>
+                <label class="app-label">Password</label>
+                <input type="password" name="password" required class="app-input" placeholder="Masukkan password">
+            </div>
+            <button type="submit" class="btn btn-primary w-full py-3 text-base">
+                <i class="ph ph-sign-in"></i> Masuk ke Aplikasi
+            </button>
+        </form>
     </div>
-</body>
+</div>
 
-</html>
+<?php if ($error): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    Swal.fire({
+        icon: 'error',
+        title: 'Login Gagal',
+        text: <?php echo json_encode($error, JSON_UNESCAPED_UNICODE); ?>,
+        confirmButtonColor: '#228BBA'
+    });
+});
+</script>
+<?php endif; ?>
+
+<?php $withMain = false; require_once 'includes/footer.php'; ?>

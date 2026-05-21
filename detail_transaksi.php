@@ -18,42 +18,26 @@ if (!$penjualan) {
 $detail_query = "SELECT 
                     dp.*,
                     b.nama_barang,
-                    b.unit_type,
-                    u.nama as owner_nama
+                    b.unit_type
                  FROM detail_penjualan dp
                  JOIN barang b ON dp.barang_id = b.id
-                 JOIN users u ON dp.owner_id = u.id
                  WHERE dp.penjualan_id = $id";
 
 $detail_result = mysqli_query($conn, $detail_query);
+$pageTitle = 'Detail Transaksi - Toko Rahmat Jaya';
+$extraHead = '<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">';
+require_once 'includes/head.php';
+$navTitle = 'Detail Transaksi';
+$navBackUrl = 'javascript:history.back()';
+require_once 'includes/navbar.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" sizes="16x16" href="icons/16×16.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/32×32.png">
-    <link rel="icon" type="image/png" sizes="48x48" href="icons/48×48.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/192×192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="icons/512×512.png">
-    <link rel="apple-touch-icon" href="icons/180×180.png">
-    <title>Detail Transaksi - Toko Rahmat Jaya</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
-</head>
-
-<body class="bg-gray-100">
-    <nav class="bg-blue-600 text-white p-4">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-bold">Detail Transaksi</h1>
-            <a href="javascript:history.back()" class="bg-blue-700 px-4 py-2 rounded hover:bg-blue-800">Kembali</a>
+<div class="app-container max-w-4xl">
+    <div class="app-panel mb-6">
+        <div class="app-panel-header">
+            <span class="app-panel-title"><i class="ph ph-receipt text-amber-600"></i> Detail Transaksi #<?php echo $id; ?></span>
         </div>
-    </nav>
-
-    <div class="container mx-auto p-4 max-w-4xl">
-        <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="app-panel-body">
             <div class="grid grid-cols-2 gap-4 mb-6">
                 <div>
                     <p class="text-gray-600 text-sm">Tanggal Transaksi</p>
@@ -62,69 +46,64 @@ $detail_result = mysqli_query($conn, $detail_query);
                 <div>
                     <p class="text-gray-600 text-sm">Metode Pembayaran</p>
                     <p class="font-medium">
-                        <span class="px-3 py-1 rounded-full text-sm
-                            <?php echo $penjualan['metode_bayar'] == 'qris' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'; ?>">
+                        <span class="badge <?php echo $penjualan['metode_bayar'] == 'qris' ? 'badge-blue' : 'badge-green'; ?>">
                             <?php echo strtoupper($penjualan['metode_bayar']); ?>
                         </span>
                     </p>
                 </div>
             </div>
 
-            <div class="border-t pt-4">
+            <div class="border-t pt-4 overflow-x-auto">
                 <h3 class="font-bold text-lg mb-4">Item Terjual</h3>
-                <div class="space-y-3">
-                    <?php while ($item = mysqli_fetch_assoc($detail_result)): ?>
-                        <div class="flex justify-between items-start border-b pb-3">
-                            <div class="flex-1">
-                                <p class="font-medium"><?php echo $item['nama_barang']; ?></p>
-                                <!-- <p class="text-sm text-gray-600">
-                                    Pemilik:
-                                    <span class="px-2 py-0.5 rounded-full text-xs
-                                    <?php echo $item['owner_nama'] == 'Ibu' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'; ?>">
-                                        <?php echo $item['owner_nama']; ?>
-                                    </span>
-                                </p> -->
-                                <p class="text-sm text-gray-600">
-                                    <?php echo formatQty($item['jumlah']); ?> <?php echo htmlspecialchars($item['unit'] ?? 'pcs'); ?>
-                                    x <?php echo formatRupiah($item['harga_satuan']); ?>
-                                </p>
-                            </div>
-                            <div class="text-right">
-                                <p class="font-medium"><?php echo formatRupiah($item['subtotal']); ?></p>
-                            </div>
-                        </div>
-                    <?php endwhile; ?>
-                </div>
+                <table class="w-full" id="detailItemTable">
+                    <thead class="bg-gray-100 text-sm">
+                        <tr>
+                            <th class="px-3 py-2 text-left">Barang</th>
+                            <th class="px-3 py-2 text-center">Qty</th>
+                            <th class="px-3 py-2 text-right">Harga</th>
+                            <th class="px-3 py-2 text-right">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php while ($item = mysqli_fetch_assoc($detail_result)): ?>
+                            <tr class="border-b text-sm">
+                                <td class="px-3 py-2 font-medium"><?php echo htmlspecialchars($item['nama_barang']); ?></td>
+                                <td class="px-3 py-2 text-center"><?php echo formatQty($item['jumlah']); ?> <?php echo htmlspecialchars($item['unit'] ?? 'pcs'); ?></td>
+                                <td class="px-3 py-2 text-right"><?php echo formatRupiah($item['harga_satuan']); ?></td>
+                                <td class="px-3 py-2 text-right font-medium"><?php echo formatRupiah($item['subtotal']); ?></td>
+                            </tr>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
 
                 <div class="mt-6 pt-4 border-t">
                     <div class="flex justify-between items-center">
                         <p class="text-xl font-bold">TOTAL</p>
-                        <p class="text-2xl font-bold text-green-600"><?php echo formatRupiah($penjualan['total_bayar']); ?></p>
+                        <p class="text-2xl font-extrabold text-amber-600"><?php echo formatRupiah($penjualan['total_bayar']); ?></p>
                     </div>
                 </div>
             </div>
         </div>
-
-        <div class="text-center">
-            <button onclick="window.print()" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 inline-flex items-center gap-2">
-                <i class="ph ph-printer"></i> Cetak Struk
-            </button>
-        </div>
     </div>
 
-    <style>
-        @media print {
+    <div class="text-center">
+        <button type="button" onclick="window.print()" class="btn btn-secondary">
+            <i class="ph ph-printer"></i> Cetak Struk
+        </button>
+    </div>
+</div>
 
-            nav,
-            button {
-                display: none;
-            }
-
-            body {
-                background: white;
-            }
-        }
-    </style>
-</body>
-
-</html>
+    <style>@media print{nav,button{display:none}body{background:#fff}}</style>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+    <script>
+    $(function() {
+        $('#detailItemTable').DataTable({
+            paging: false,
+            searching: false,
+            info: false,
+            language: { url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/id.json' }
+        });
+    });
+    </script>
+<?php require_once 'includes/footer.php'; ?>

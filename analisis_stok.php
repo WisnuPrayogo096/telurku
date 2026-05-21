@@ -221,15 +221,12 @@ function showTab(tabId) {
 </script>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="assets/js/datatables-default.js"></script>
 <script>
 $(function() {
     $('.analisis-table').each(function() {
         if ($(this).find('tbody tr td[colspan]').length) return;
-        $(this).DataTable({
-            pageLength: 10,
-            searching: true,
-            language: { url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/id.json' }
-        });
+        initDefaultDataTable(this);
     });
 });
 </script>

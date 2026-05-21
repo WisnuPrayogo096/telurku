@@ -4,14 +4,22 @@ requireLogin();
 
 $success = '';
 $error = '';
+$tanggal_penjualan = getCurrentDate();
 
 // Proses Penjualan
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
-    $tanggal_waktu = getDateTime(); // Otomatis datetime dengan timezone GMT+7
+    $tanggal_penjualan = $_POST['tanggal_penjualan'] ?? getCurrentDate();
+    $date = DateTime::createFromFormat('Y-m-d', $tanggal_penjualan);
+    if (!$date || $date->format('Y-m-d') !== $tanggal_penjualan) {
+        $error = 'Tanggal penjualan tidak valid!';
+        $tanggal_penjualan = getCurrentDate();
+    }
+
+    $tanggal_waktu = $tanggal_penjualan . ' ' . date('H:i:s');
     $metode_bayar = 'tunai';
-    $barang_ids = $_POST['barang_id'];
-    $units = $_POST['unit'];
-    $jumlahs = $_POST['jumlah'];
+    $barang_ids = $_POST['barang_id'] ?? [];
+    $units = $_POST['unit'] ?? [];
+    $jumlahs = $_POST['jumlah'] ?? [];
 
     $total_bayar = 0;
     $items = [];
@@ -181,13 +189,13 @@ require_once 'includes/swal_flash.php';
                         </div>
 
                         <div class="app-panel overflow-hidden !shadow-sm">
-                            <div class="hidden md:grid grid-cols-12 bg-slate-100 text-xs font-bold text-slate-600 px-3 py-2.5 uppercase tracking-wide">
-                                <div class="col-span-4">Barang</div>
-                                <div class="col-span-2 text-center">Unit</div>
-                                <div class="col-span-2 text-center">Qty</div>
-                                <div class="col-span-2 text-right">Harga</div>
-                                <div class="col-span-1 text-right">Subtotal</div>
-                                <div class="col-span-1 text-center">Aksi</div>
+                            <div class="hidden md:grid kasir-table-grid kasir-table-header">
+                                <div>Barang</div>
+                                <div class="text-center">Unit</div>
+                                <div class="text-center">Qty</div>
+                                <div class="text-right">Harga</div>
+                                <div class="text-right">Subtotal</div>
+                                <div class="text-center">Aksi</div>
                             </div>
                             <div id="itemContainer" class="divide-y divide-slate-100">
                                 <div id="emptyState" class="empty-state">
@@ -203,6 +211,11 @@ require_once 'includes/swal_flash.php';
                             <h3 class="text-lg font-bold flex items-center gap-2">
                                 <i class="ph ph-receipt"></i> Ringkasan
                             </h3>
+                            <div>
+                                <label class="text-sm text-slate-300 block mb-1">Tanggal Penjualan</label>
+                                <input type="date" name="tanggal_penjualan" class="app-input !bg-slate-800 !border-slate-600 !text-white"
+                                    value="<?php echo htmlspecialchars($tanggal_penjualan); ?>" required>
+                            </div>
                             <div class="flex justify-between items-center text-slate-300">
                                 <span class="text-sm">Total Item</span>
                                 <span class="text-lg font-bold text-white" id="totalItemDisplay">0</span>
@@ -378,7 +391,7 @@ require_once 'includes/swal_flash.php';
             if (emptyState) emptyState.remove();
 
             const row = document.createElement('div');
-            row.className = "item-row px-3 py-3 grid grid-cols-1 md:grid-cols-12 gap-3 items-center hover:bg-amber-50/50 transition-colors";
+            row.className = "item-row kasir-table-grid kasir-item-row";
             row.dataset.harga = data.harga;
             row.dataset.hargaRenteng = data.hargaRenteng;
             row.dataset.hargaPcs = data.hargaPcs;
@@ -400,18 +413,18 @@ require_once 'includes/swal_flash.php';
 
             row.innerHTML = `
                 <input type="hidden" name="barang_id[]" value="${data.id}">
-                <div class="md:col-span-4">
+                <div>
                     <div class="text-sm font-semibold text-gray-800">${data.nama}</div>
                     <div class="text-xs text-gray-500">Stok: ${data.stokLabel}</div>
                 </div>
 
-                <div class="md:col-span-2">
+                <div>
                     <select name="unit[]" class="unit-select app-input text-sm py-2">
                         ${unitOptions}
                     </select>
                 </div>
 
-                <div class="md:col-span-2 flex items-center gap-2">
+                <div class="flex items-center gap-2">
                     <div class="flex-1">
                         <input type="number" name="jumlah[]" value="1"
                             class="app-input text-sm py-2 jumlah-input"
@@ -420,15 +433,15 @@ require_once 'includes/swal_flash.php';
                     <span class="hidden md:inline text-xs text-gray-500 unit-label">${data.unit === 'gram' || data.unit === 'kg' ? 'gram' : 'pcs'}</span>
                 </div>
 
-                <div class="md:col-span-2 md:text-right">
+                <div class="kasir-col-price">
                     <div class="text-sm font-medium harga-satuan">${formatRupiahJs(data.harga)}</div>
                 </div>
 
-                <div class="md:col-span-1 md:text-right">
+                <div class="kasir-col-subtotal">
                     <div class="text-sm font-bold text-amber-600 subtotal-item">Rp 0</div>
                 </div>
 
-                <div class="md:col-span-1 text-center">
+                <div class="kasir-col-action">
                     <button type="button" class="hapus-row text-red-600 hover:text-red-800 hover:underline text-sm font-medium inline-flex items-center gap-1">
                         <i class="ph ph-trash"></i> Hapus
                     </button>

@@ -564,6 +564,50 @@ table.dataTable tbody tr:hover { background: #effbff !important; }
     padding: 1rem;
 }
 
+.kasir-table-grid {
+    display: grid;
+    grid-template-columns:
+        minmax(9rem, 2fr)
+        minmax(8rem, 1.45fr)
+        minmax(8rem, 1.35fr)
+        minmax(6rem, 1fr)
+        minmax(7.5rem, 1.45fr)
+        minmax(5.5rem, 1fr);
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.kasir-table-header {
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    padding: 0.625rem 0.75rem;
+    text-transform: uppercase;
+}
+
+.kasir-item-row {
+    padding: 0.75rem;
+    transition: background-color 0.2s;
+}
+
+.kasir-item-row:hover { background: #effbff; }
+.kasir-col-price,
+.kasir-col-subtotal { text-align: right; }
+.kasir-col-action { text-align: center; }
+
+@media (max-width: 767px) {
+    .kasir-table-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .kasir-col-price,
+    .kasir-col-subtotal,
+    .kasir-col-action { text-align: left; }
+}
+
 .section-card {
     background: #f8fafc;
     border: 1px dashed #cbd5e1;

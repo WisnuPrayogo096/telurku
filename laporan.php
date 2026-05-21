@@ -105,13 +105,10 @@ require_once 'includes/navbar.php';
 </div>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+    <script src="assets/js/datatables-default.js"></script>
     <script>
         $(function() {
-            $('#laporanTable').DataTable({
-                pageLength: 25,
-                order: [[0, 'desc']],
-                language: { url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/id.json' }
-            });
+            initDefaultDataTable('#laporanTable');
         });
     </script>
 <?php require_once 'includes/footer.php'; ?>

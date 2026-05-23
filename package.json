@@ -2,7 +2,8 @@
   "name": "telurku",
   "private": true,
   "scripts": {
-    "build:css": "tailwindcss -i ./assets/css/tailwind-src.css -o ./assets/css/tailwind.css --minify"
+    "build:css": "npx --yes tailwindcss@3.4.17 -i ./assets/css/tailwind-src.css -o ./assets/css/tailwind.css --minify",
+    "build:css:local": "npm install --include=dev && npm run build:css"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.17"

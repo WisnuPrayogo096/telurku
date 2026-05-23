@@ -73,6 +73,11 @@ require_once 'includes/navbar.php';
             <div class="menu-card-title">Stok Masuk</div>
             <div class="menu-card-desc">Restock &amp; riwayat masuk</div>
         </a>
+        <a href="pengurangan_stok" class="menu-card menu-card--rose">
+            <div class="menu-card-icon"><i class="ph ph-arrow-down"></i></div>
+            <div class="menu-card-title">Pengurangan Stok</div>
+            <div class="menu-card-desc">Keluar untuk keperluan pribadi</div>
+        </a>
         <a href="penjualan" class="menu-card menu-card--emerald">
             <div class="menu-card-icon"><i class="ph ph-hand-coins"></i></div>
             <div class="menu-card-title">Kasir Penjualan</div>

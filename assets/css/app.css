@@ -297,6 +297,8 @@
 .menu-card--emerald .menu-card-icon { background: linear-gradient(135deg, #00bcff, #2963a2); color: #fff; }
 .menu-card--purple .menu-card-icon { background: linear-gradient(135deg, #228bba, #2963a2); color: #fff; }
 .menu-card--amber .menu-card-icon { background: linear-gradient(135deg, #a7f5e9, #00bcff); color: #0f416c; }
+.menu-card--rose:hover::after { background: linear-gradient(135deg, rgba(244, 63, 94, 0.08), transparent); }
+.menu-card--rose .menu-card-icon { background: linear-gradient(135deg, #fda4af, #e11d48); color: #fff; }
 
 .menu-card-title { font-weight: 700; font-size: 1.05rem; margin-bottom: 0.25rem; }
 .menu-card-desc { font-size: 0.85rem; color: var(--muted); }
@@ -564,18 +566,28 @@ table.dataTable tbody tr:hover { background: #effbff !important; }
     padding: 1rem;
 }
 
+.kasir-table-panel { overflow: visible; }
+
+.kasir-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
 .kasir-table-grid {
     display: grid;
     grid-template-columns:
-        minmax(9rem, 2fr)
-        minmax(8rem, 1.45fr)
-        minmax(8rem, 1.35fr)
-        minmax(6rem, 1fr)
-        minmax(7.5rem, 1.45fr)
-        minmax(5.5rem, 1fr);
+        minmax(0, 1.6fr)
+        minmax(0, 1.1fr)
+        minmax(0, 1fr)
+        minmax(0, 0.85fr)
+        minmax(0, 0.95fr)
+        4.25rem;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
+    width: 100%;
 }
+
+.kasir-table-grid > * { min-width: 0; }
 
 .kasir-table-header {
     background: #f1f5f9;
@@ -595,7 +607,25 @@ table.dataTable tbody tr:hover { background: #effbff !important; }
 .kasir-item-row:hover { background: #effbff; }
 .kasir-col-price,
 .kasir-col-subtotal { text-align: right; }
-.kasir-col-action { text-align: center; }
+
+.kasir-col-action {
+    text-align: center;
+    justify-self: center;
+}
+
+.hapus-row {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.35rem 0.5rem;
+    white-space: nowrap;
+    border-radius: 0.5rem;
+}
+
+@media (min-width: 768px) {
+    .kasir-hapus-label { display: none; }
+}
 
 @media (max-width: 767px) {
     .kasir-table-grid {

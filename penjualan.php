@@ -152,7 +152,7 @@ require_once 'includes/swal_flash.php';
     <div class="app-panel">
         <div class="app-panel-header">
             <span class="app-panel-title"><i class="ph ph-hand-coins text-amber-600"></i> Kasir Penjualan</span>
-            <span class="text-xs text-slate-500 hidden sm:inline">Enter = tambah barang</span>
+            <span class="text-xs text-slate-500 hidden sm:inline">Enter: tambah → unit → qty → cari lagi</span>
         </div>
         <div class="app-panel-body">
             <form method="POST" action="" id="formPenjualan" class="space-y-4">
@@ -182,13 +182,11 @@ require_once 'includes/swal_flash.php';
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
-                                <div class="md:col-span-3 text-xs text-amber-800/80 font-medium md:pb-3 flex items-center gap-1">
-                                    <i class="ph ph-keyboard"></i> Enter = tambah
-                                </div>
                             </div>
                         </div>
 
-                        <div class="app-panel overflow-hidden !shadow-sm">
+                        <div class="app-panel !shadow-sm kasir-table-panel">
+                            <div class="kasir-table-scroll">
                             <div class="hidden md:grid kasir-table-grid kasir-table-header">
                                 <div>Barang</div>
                                 <div class="text-center">Unit</div>
@@ -202,6 +200,7 @@ require_once 'includes/swal_flash.php';
                                     <i class="ph ph-shopping-cart text-3xl text-slate-300 block mb-2"></i>
                                     Belum ada item. Ketik nama barang di atas lalu Enter.
                                 </div>
+                            </div>
                             </div>
                         </div>
                     </div>
@@ -412,8 +411,8 @@ require_once 'includes/swal_flash.php';
             }
 
             row.innerHTML = `
-                <input type="hidden" name="barang_id[]" value="${data.id}">
                 <div>
+                    <input type="hidden" name="barang_id[]" value="${data.id}">
                     <div class="text-sm font-semibold text-gray-800">${data.nama}</div>
                     <div class="text-xs text-gray-500">Stok: ${data.stokLabel}</div>
                 </div>
@@ -442,8 +441,9 @@ require_once 'includes/swal_flash.php';
                 </div>
 
                 <div class="kasir-col-action">
-                    <button type="button" class="hapus-row text-red-600 hover:text-red-800 hover:underline text-sm font-medium inline-flex items-center gap-1">
-                        <i class="ph ph-trash"></i> Hapus
+                    <button type="button" class="hapus-row text-red-600 hover:text-red-800 hover:bg-red-50" title="Hapus item">
+                        <i class="ph ph-trash text-xl"></i>
+                        <span class="kasir-hapus-label">Hapus</span>
                     </button>
                 </div>
             `;
@@ -451,6 +451,30 @@ require_once 'includes/swal_flash.php';
             container.appendChild(row);
             attachListenersToRow(row);
             updateTotals();
+        }
+
+        function focusPilihBarang() {
+            const select = $('#pilihBarang');
+            select.val(null).trigger('change');
+            setTimeout(function() {
+                select.select2('open');
+                document.querySelector('.select2-search__field')?.focus();
+            }, 50);
+        }
+
+        function focusUnitOnRow(row) {
+            const unitSelect = row?.querySelector('.unit-select');
+            if (unitSelect) {
+                unitSelect.focus();
+            }
+        }
+
+        function focusQtyOnRow(row) {
+            const qtyInput = row?.querySelector('.jumlah-input');
+            if (qtyInput) {
+                qtyInput.focus();
+                qtyInput.select();
+            }
         }
 
         function attachListenersToRow(row) {
@@ -463,12 +487,26 @@ require_once 'includes/swal_flash.php';
                     updateRow(row);
                     updateTotals();
                 });
+                qtyInput.addEventListener('keydown', (e) => {
+                    if (e.key !== 'Enter') return;
+                    e.preventDefault();
+                    updateRow(row);
+                    updateTotals();
+                    focusPilihBarang();
+                });
             }
 
             if (unitSelect) {
                 unitSelect.addEventListener('change', () => {
                     updateRow(row);
                     updateTotals();
+                });
+                unitSelect.addEventListener('keydown', (e) => {
+                    if (e.key !== 'Enter') return;
+                    e.preventDefault();
+                    updateRow(row);
+                    updateTotals();
+                    focusQtyOnRow(row);
                 });
             }
 
@@ -510,8 +548,9 @@ require_once 'includes/swal_flash.php';
             };
 
             createRow(data);
-            select.val(null).trigger('change'); // Reset Select2
-            setTimeout(() => select.select2('open'), 50);
+            select.val(null).trigger('change');
+            const rows = document.querySelectorAll('#itemContainer .item-row');
+            focusUnitOnRow(rows[rows.length - 1]);
             return true;
         }
 

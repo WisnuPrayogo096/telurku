@@ -420,6 +420,7 @@ require_once 'includes/swal_flash.php';
     });
 </script>
 
+<?php require_once 'includes/swal_lib.php'; ?>
 <script>
     // SweetAlert2: Konfirmasi hapus
     document.querySelectorAll('.delete-btn').forEach((btn) => {

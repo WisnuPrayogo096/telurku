@@ -111,7 +111,7 @@ if (isset($_GET['delete'])) {
 }
 
 // Ambil list barang untuk dropdown
-$barang_query = "SELECT id, nama_barang, unit_type, isi_renteng, stok FROM barang ORDER BY nama_barang ASC";
+$barang_query = "SELECT id, nama_barang, unit_type, isi_renteng, stok, harga_beli, harga_jual FROM barang ORDER BY nama_barang ASC";
 $barang_result = mysqli_query($conn, $barang_query);
 
 // Ambil data riwayat stok masuk
@@ -162,11 +162,29 @@ require_once 'includes/swal_flash.php';
                                 <select name="barang_id" id="barang_id" required class="w-full">
                                     <option value="">-- Cari Barang --</option>
                                     <?php while ($brg = mysqli_fetch_assoc($barang_result)): ?>
-                                        <option value="<?php echo $brg['id']; ?>" data-unit="<?php echo $brg['unit_type']; ?>">
+                                        <option value="<?php echo $brg['id']; ?>"
+                                            data-unit="<?php echo htmlspecialchars($brg['unit_type']); ?>"
+                                            data-harga-beli="<?php echo (float)$brg['harga_beli']; ?>"
+                                            data-harga-jual="<?php echo (float)$brg['harga_jual']; ?>">
                                             <?php echo $brg['nama_barang']; ?> (Sisa: <?php echo ($brg['unit_type'] === 'renteng' && (int)$brg['isi_renteng'] > 0) ? formatQty($brg['stok'] / max((int)$brg['isi_renteng'], 1)) . ' renteng' : formatQty($brg['stok']) . ' ' . unitLabel($brg['unit_type']); ?>)
                                         </option>
                                     <?php endwhile; ?>
                                 </select>
+                            </div>
+
+                            <div id="hargaSaatIniBox" class="section-card p-4 hidden">
+                                <p class="text-sm font-medium text-slate-600 mb-2"><i class="ph ph-tag text-amber-600"></i> Harga saat ini</p>
+                                <div class="grid grid-cols-2 gap-3 text-sm">
+                                    <div class="bg-white rounded-lg border border-slate-200 px-3 py-2">
+                                        <span class="text-slate-500 block text-xs">Harga Beli</span>
+                                        <span id="hargaBeliSaatIni" class="font-bold text-slate-800">—</span>
+                                    </div>
+                                    <div class="bg-white rounded-lg border border-slate-200 px-3 py-2">
+                                        <span class="text-slate-500 block text-xs">Harga Jual</span>
+                                        <span id="hargaJualSaatIni" class="font-bold text-amber-700">—</span>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-2">Isi kolom di bawah hanya jika ingin mengubah harga.</p>
                             </div>
 
                             <div>
@@ -229,12 +247,6 @@ require_once 'includes/swal_flash.php';
                                             </td>
                                         </tr>
                                     <?php endwhile; ?>
-                                <?php else: ?>
-                                    <tr>
-                                        <td colspan="6" class="px-4 py-8 text-center text-gray-500">
-                                            Belum ada riwayat stok masuk.
-                                        </td>
-                                    </tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -242,6 +254,7 @@ require_once 'includes/swal_flash.php';
     </div>
 </div>
 
+    <?php require_once 'includes/swal_lib.php'; ?>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
@@ -252,7 +265,11 @@ require_once 'includes/swal_flash.php';
                 placeholder: '-- Cari Barang --',
                 allowClear: true
             });
-            initDefaultDataTable('#stokMasukTable');
+            initDefaultDataTable('#stokMasukTable', {
+                language: {
+                    emptyTable: 'Belum ada riwayat stok masuk.'
+                }
+            });
 
             $('#totalHargaBeliDisplay').text(new Intl.NumberFormat('id-ID', {
                 style: 'currency',
@@ -279,18 +296,38 @@ require_once 'includes/swal_flash.php';
                 document.querySelector('.select2-search__field')?.focus();
             });
 
-            $('#barang_id').on('change', function() {
-                var selected = $(this).find('option:selected');
-                var unit = selected.data('unit');
-                if (unit) {
-                    $('#unitLabel').text('(' + (unit === 'renteng' ? 'renteng' : (unit === 'gram' || unit === 'kg' ? 'gram' : 'pcs')) + ')');
-                } else {
-                    $('#unitLabel').text('');
-                }
+            const rupiahFmt = new Intl.NumberFormat('id-ID', {
+                style: 'currency',
+                currency: 'IDR',
+                maximumFractionDigits: 0
             });
 
+            function updateHargaSaatIni() {
+                const selected = $('#barang_id').find('option:selected');
+                const val = $('#barang_id').val();
+                const box = $('#hargaSaatIniBox');
+
+                if (!val) {
+                    box.addClass('hidden');
+                    $('#unitLabel').text('');
+                    return;
+                }
+
+                const unit = selected.data('unit');
+                $('#unitLabel').text('(' + (unit === 'renteng' ? 'renteng' : (unit === 'gram' || unit === 'kg' ? 'gram' : 'pcs')) + ')');
+
+                const hargaBeli = parseFloat(selected.data('harga-beli'));
+                const hargaJual = parseFloat(selected.data('harga-jual'));
+
+                box.removeClass('hidden');
+                $('#hargaBeliSaatIni').text(hargaBeli > 0 ? rupiahFmt.format(hargaBeli) : 'Belum diisi');
+                $('#hargaJualSaatIni').text(hargaJual > 0 ? rupiahFmt.format(hargaJual) : 'Belum diisi');
+            }
+
+            $('#barang_id').on('change', updateHargaSaatIni);
+
             // Delete confirmation
-            $('.delete-btn').on('click', async function() {
+            $('#stokMasukTable').on('click', '.delete-btn', async function() {
                 const id = $(this).data('id');
                 const result = await Swal.fire({
                     title: 'Hapus data stok masuk?',

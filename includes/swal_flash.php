@@ -1,4 +1,5 @@
 <?php if (!empty($success) || !empty($error)): ?>
+<?php require_once __DIR__ . '/swal_lib.php'; ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     <?php if (!empty($success)): ?>

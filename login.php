@@ -75,6 +75,7 @@ require_once 'includes/head.php';
 </div>
 
 <?php if ($error): ?>
+<?php require_once 'includes/swal_lib.php'; ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     Swal.fire({

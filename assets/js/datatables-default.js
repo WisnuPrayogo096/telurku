@@ -18,6 +18,14 @@
     };
 
     window.initDefaultDataTable = function(selector, options) {
-        return $(selector).DataTable($.extend(true, {}, defaultOptions, options || {}));
+        const $table = $(selector);
+        if (!$table.length) {
+            return null;
+        }
+        // Baris placeholder colspan tidak punya jumlah kolom yang sama dengan thead
+        if ($table.find('tbody tr td[colspan]').length) {
+            return null;
+        }
+        return $table.DataTable($.extend(true, {}, defaultOptions, options || {}));
     };
 })(window, jQuery);

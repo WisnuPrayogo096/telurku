@@ -1,3 +1,4 @@
+<?php require_once __DIR__ . '/swal_lib.php'; ?>
 <script>
 document.getElementById('btnLogout')?.addEventListener('click', async function() {
     const result = await Swal.fire({

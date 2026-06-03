@@ -79,7 +79,7 @@ require_once 'includes/head.php';
 $navTitle = 'Profil Pengguna';
 $navBackUrl = 'index';
 require_once 'includes/navbar.php';
-require_once 'includes/swal_flash.php';
+require_once 'includes/flash.php';
 ?>
 
 <div class="app-container max-w-2xl">

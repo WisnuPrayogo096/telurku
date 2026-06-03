@@ -16,10 +16,13 @@ $query = "SELECT
           FROM detail_penjualan dp
           JOIN penjualan p ON dp.penjualan_id = p.id
           JOIN barang b ON dp.barang_id = b.id
-          WHERE DATE(p.tanggal) BETWEEN '$dari_tanggal' AND '$sampai_tanggal'
+          WHERE DATE(p.tanggal) BETWEEN ? AND ?
           ORDER BY p.tanggal DESC, p.id DESC";
 
-$result = mysqli_query($conn, $query);
+$stmt = mysqli_prepare($conn, $query);
+mysqli_stmt_bind_param($stmt, "ss", $dari_tanggal, $sampai_tanggal);
+mysqli_stmt_execute($stmt);
+$result = mysqli_stmt_get_result($stmt);
 $pageTitle = 'Laporan Penjualan - Toko Rahmat Jaya';
 $extraHead = '<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">';
 require_once 'includes/head.php';

@@ -13,8 +13,8 @@ if (isLoggedIn()) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $username = $_POST['username'];
-    $password = $_POST['password'];
+    $username = trim($_POST['username'] ?? '');
+    $password = $_POST['password'] ?? '';
 
     $query = "SELECT * FROM users WHERE username = ?";
     $stmt = mysqli_prepare($conn, $query);
@@ -24,16 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     if ($user = mysqli_fetch_assoc($result)) {
         if (password_verify($password, $user['password'])) {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['username'] = $user['username'];
-            $_SESSION['nama'] = $user['nama'];
-            $_SESSION['login_time'] = time();
-
-            $user_id = $user['id'];
-            $update_query = "UPDATE users SET last_login = NOW() WHERE id = ?";
-            $update_stmt = mysqli_prepare($conn, $update_query);
-            mysqli_stmt_bind_param($update_stmt, "i", $user_id);
-            mysqli_stmt_execute($update_stmt);
+            loginUser($conn, $user);
 
             header("Location: index");
             exit();
@@ -55,7 +46,7 @@ require_once 'includes/head.php';
         <h1 class="text-2xl font-extrabold text-center text-slate-800 tracking-tight">Toko Rahmat Jaya</h1>
         <p class="text-center text-sm text-slate-500 mt-2 mb-8">
             Masuk ke sistem kasir &amp; stok.<br>
-            <span class="text-amber-700 font-medium">Sesi aktif 30 hari</span> setelah login.
+            <span class="text-amber-700 font-medium">Perangkat ini tersimpan 30 hari</span> setelah login.
         </p>
 
         <form method="POST" action="" class="space-y-4">
@@ -74,18 +65,6 @@ require_once 'includes/head.php';
     </div>
 </div>
 
-<?php if ($error): ?>
-<?php require_once 'includes/swal_lib.php'; ?>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    Swal.fire({
-        icon: 'error',
-        title: 'Login Gagal',
-        text: <?php echo json_encode($error, JSON_UNESCAPED_UNICODE); ?>,
-        confirmButtonColor: '#228BBA'
-    });
-});
-</script>
-<?php endif; ?>
+<?php require_once 'includes/flash.php'; ?>
 
 <?php $withMain = false; require_once 'includes/footer.php'; ?>

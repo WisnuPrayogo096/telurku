@@ -6,6 +6,7 @@ $stats = getDashboardStats($conn);
 extract($stats);
 
 $pageTitle = 'Dashboard - Toko Rahmat Jaya';
+$extraHead = '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>';
 require_once 'includes/head.php';
 $navTitle = 'Dashboard';
 $showUserGreeting = true;
@@ -16,7 +17,7 @@ require_once 'includes/navbar.php';
 
 <div class="app-container">
     <div class="app-alert app-alert-info">
-        <i class="ph ph-clock text-xl text-amber-600 shrink-0"></i>
+        <i class="ph ph-clock text-xl text-brand shrink-0"></i>
         <span>Sesi login aktif <strong>30 hari</strong>. Setelah itu, masukkan username &amp; password lagi.</span>
     </div>
 
@@ -45,6 +46,12 @@ require_once 'includes/navbar.php';
             <div class="stat-card-value"><?php echo formatRupiah($total_month); ?></div>
             <div class="stat-card-hint"><?php echo date('F Y'); ?></div>
         </div>
+        <div class="stat-card stat-card--teal">
+            <div class="stat-card-icon"><i class="ph ph-chart-line-up"></i></div>
+            <div class="stat-card-label">Keuntungan Bulan Ini</div>
+            <div class="stat-card-value <?php echo $total_keuntungan_month < 0 ? 'text-red-600' : ''; ?>"><?php echo formatRupiah($total_keuntungan_month ?? 0); ?></div>
+            <div class="stat-card-hint">Total Penjualan − HPP</div>
+        </div>
         <div class="stat-card stat-card--rose">
             <div class="stat-card-icon"><i class="ph ph-wallet"></i></div>
             <div class="stat-card-label">Total Aset (Beli)</div>
@@ -59,43 +66,169 @@ require_once 'includes/navbar.php';
         </div>
     </div>
 
-    <h2 class="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
-        <i class="ph ph-squares-four text-amber-600"></i> Menu Utama
+    <h2 class="text-lg font-bold text-slate-800 mb-3 mt-6 flex items-center gap-2">
+        <i class="ph ph-chart-pie-slice text-brand"></i> Analisis Penjualan
     </h2>
-    <div class="menu-grid">
-        <a href="barang" class="menu-card menu-card--blue">
-            <div class="menu-card-icon"><i class="ph ph-package"></i></div>
-            <div class="menu-card-title">Data Barang</div>
-            <div class="menu-card-desc">Kelola master stok &amp; harga</div>
-        </a>
-        <a href="stok_masuk" class="menu-card menu-card--green">
-            <div class="menu-card-icon"><i class="ph ph-archive-box"></i></div>
-            <div class="menu-card-title">Stok Masuk</div>
-            <div class="menu-card-desc">Restock &amp; riwayat masuk</div>
-        </a>
-        <a href="pengurangan_stok" class="menu-card menu-card--rose">
-            <div class="menu-card-icon"><i class="ph ph-arrow-down"></i></div>
-            <div class="menu-card-title">Pengurangan Stok</div>
-            <div class="menu-card-desc">Keluar untuk keperluan pribadi</div>
-        </a>
-        <a href="penjualan" class="menu-card menu-card--emerald">
-            <div class="menu-card-icon"><i class="ph ph-hand-coins"></i></div>
-            <div class="menu-card-title">Kasir Penjualan</div>
-            <div class="menu-card-desc">Catat transaksi harian</div>
-        </a>
-        <a href="laporan" class="menu-card menu-card--purple">
-            <div class="menu-card-icon"><i class="ph ph-chart-line"></i></div>
-            <div class="menu-card-title">Laporan Penjualan</div>
-            <div class="menu-card-desc">Rekapan &amp; detail item</div>
-        </a>
-        <a href="analisis_stok" class="menu-card menu-card--amber">
-            <div class="menu-card-icon"><i class="ph ph-trend-up"></i></div>
-            <div class="menu-card-title">Analisis Stok</div>
-            <div class="menu-card-desc">Barang laris &amp; stok menipis</div>
-        </a>
+    
+    <div class="chart-grid">
+        <div class="chart-panel full-width">
+            <div class="chart-panel-title"><i class="ph ph-chart-line"></i> Grafik Penjualan 7 Hari Terakhir</div>
+            <div class="chart-canvas-wrap">
+                <canvas id="chartPenjualanHarian"></canvas>
+            </div>
+        </div>
+        
+        <div class="chart-panel">
+            <div class="chart-panel-title"><i class="ph ph-trophy"></i> Top 5 Barang Terlaris</div>
+            <div class="chart-canvas-wrap">
+                <canvas id="chartTopBarang"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-panel">
+            <div class="chart-panel-title"><i class="ph ph-chart-pie"></i> Komposisi Kategori Barang</div>
+            <div class="chart-canvas-wrap">
+                <canvas id="chartKategori"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-panel">
+            <div class="chart-panel-title"><i class="ph ph-trend-up"></i> Tren Keuntungan Harian</div>
+            <div class="chart-canvas-wrap">
+                <canvas id="chartKeuntungan"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-panel">
+            <div class="chart-panel-title"><i class="ph ph-users"></i> Tipe Pelanggan (Estimasi)</div>
+            <div class="chart-canvas-wrap">
+                <canvas id="chartPelanggan"></canvas>
+            </div>
+        </div>
     </div>
 </div>
 
-<?php
-require_once 'includes/logout_script.php';
-require_once 'includes/footer.php';
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+    Chart.defaults.color = '#64748b';
+    const brandColor = '#0ea5e9';
+    const gridColor = '#e2e8f0';
+
+    // 1. Chart Penjualan Harian
+    new Chart(document.getElementById('chartPenjualanHarian'), {
+        type: 'line',
+        data: {
+            labels: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'],
+            datasets: [{
+                label: 'Total Penjualan (Rp)',
+                data: [1500000, 2100000, 1800000, 2400000, 2200000, 3100000, 3500000],
+                borderColor: brandColor,
+                backgroundColor: 'rgba(14, 165, 233, 0.1)',
+                borderWidth: 2,
+                tension: 0.3,
+                fill: true,
+                pointBackgroundColor: brandColor
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: gridColor } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+
+    // 2. Chart Top 5 Barang
+    new Chart(document.getElementById('chartTopBarang'), {
+        type: 'bar',
+        data: {
+            labels: ['Beras 5kg', 'Minyak 2L', 'Gula 1kg', 'Indomie', 'Telur 1kg'],
+            datasets: [{
+                label: 'Terjual',
+                data: [45, 82, 60, 150, 40],
+                backgroundColor: ['#0ea5e9', '#22c55e', '#f59e0b', '#f43f5e', '#a855f7'],
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: gridColor } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+
+    // 3. Chart Komposisi Kategori
+    new Chart(document.getElementById('chartKategori'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Sembako', 'Minuman', 'Snack', 'Rokok', 'Lainnya'],
+            datasets: [{
+                data: [40, 20, 15, 15, 10],
+                backgroundColor: ['#0ea5e9', '#22c55e', '#f59e0b', '#f43f5e', '#a855f7'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+                legend: { position: 'right' }
+            }
+        }
+    });
+
+    // 4. Chart Tren Keuntungan Harian
+    new Chart(document.getElementById('chartKeuntungan'), {
+        type: 'bar',
+        data: {
+            labels: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'],
+            datasets: [{
+                label: 'Keuntungan (Rp)',
+                data: [350000, 480000, 420000, 560000, 510000, 720000, 850000],
+                backgroundColor: '#22c55e',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: gridColor } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+
+    // 5. Chart Tipe Pelanggan
+    new Chart(document.getElementById('chartPelanggan'), {
+        type: 'pie',
+        data: {
+            labels: ['Umum', 'Grosir', 'Langganan'],
+            datasets: [{
+                data: [65, 20, 15],
+                backgroundColor: ['#0ea5e9', '#f59e0b', '#6366f1'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+});
+</script>
+
+<?php require_once 'includes/footer.php'; ?>

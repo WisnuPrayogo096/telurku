@@ -13,7 +13,24 @@
         processing: true,
         stateSave: true,
         language: {
-            url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/id.json'
+            emptyTable: 'Tidak ada data',
+            info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
+            infoEmpty: 'Menampilkan 0 sampai 0 dari 0 data',
+            infoFiltered: '(difilter dari _MAX_ total data)',
+            loadingRecords: 'Memuat...',
+            processing: 'Memproses...',
+            search: 'Cari:',
+            zeroRecords: 'Data tidak ditemukan',
+            paginate: {
+                first: 'Pertama',
+                last: 'Terakhir',
+                next: 'Berikutnya',
+                previous: 'Sebelumnya'
+            },
+            aria: {
+                sortAscending: ': aktifkan untuk urut naik',
+                sortDescending: ': aktifkan untuk urut turun'
+            }
         }
     };
 

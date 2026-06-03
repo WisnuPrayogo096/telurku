@@ -5,8 +5,11 @@ requireLogin();
 $id = (int)($_GET['id'] ?? 0);
 
 // Ambil data penjualan
-$query = "SELECT * FROM penjualan WHERE id = $id";
-$result = mysqli_query($conn, $query);
+$query = "SELECT * FROM penjualan WHERE id = ?";
+$stmt = mysqli_prepare($conn, $query);
+mysqli_stmt_bind_param($stmt, "i", $id);
+mysqli_stmt_execute($stmt);
+$result = mysqli_stmt_get_result($stmt);
 $penjualan = mysqli_fetch_assoc($result);
 
 if (!$penjualan) {
@@ -21,9 +24,11 @@ $detail_query = "SELECT
                     b.unit_type
                  FROM detail_penjualan dp
                  JOIN barang b ON dp.barang_id = b.id
-                 WHERE dp.penjualan_id = $id";
-
-$detail_result = mysqli_query($conn, $detail_query);
+                 WHERE dp.penjualan_id = ?";
+$stmt_detail = mysqli_prepare($conn, $detail_query);
+mysqli_stmt_bind_param($stmt_detail, "i", $id);
+mysqli_stmt_execute($stmt_detail);
+$detail_result = mysqli_stmt_get_result($stmt_detail);
 $pageTitle = 'Detail Transaksi - Toko Rahmat Jaya';
 $extraHead = '<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">';
 require_once 'includes/head.php';

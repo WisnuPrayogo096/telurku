@@ -56,6 +56,12 @@ function ensureBarangSchema($conn)
     if (!isset($columns['harga_jual_pcs'])) {
         $alterParts[] = "ADD COLUMN harga_jual_pcs DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER harga_jual_renteng";
     }
+    if (!isset($columns['created_at'])) {
+        $alterParts[] = "ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP";
+    }
+    if (!isset($columns['updated_at'])) {
+        $alterParts[] = "ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP";
+    }
 
     if ($alterParts) {
         // Jalankan satu ALTER TABLE untuk semua kolom baru.
@@ -116,7 +122,7 @@ function ensureBarangSchema($conn)
     mysqli_query($conn, $sql_stok_keluar);
 }
 
-// Pastikan tabel users memiliki kolom last_login untuk persistent session
+// Pastikan tabel users memiliki kolom token untuk persistent login 30 hari.
 function ensureUsersSchema($conn)
 {
     $columns = [];
@@ -128,6 +134,12 @@ function ensureUsersSchema($conn)
 
     if (!isset($columns['last_login'])) {
         mysqli_query($conn, "ALTER TABLE users ADD COLUMN last_login TIMESTAMP NULL");
+    }
+    if (!isset($columns['remember_token_hash'])) {
+        mysqli_query($conn, "ALTER TABLE users ADD COLUMN remember_token_hash CHAR(64) NULL AFTER last_login");
+    }
+    if (!isset($columns['remember_token_expires_at'])) {
+        mysqli_query($conn, "ALTER TABLE users ADD COLUMN remember_token_expires_at DATETIME NULL AFTER remember_token_hash");
     }
 }
 
@@ -147,15 +159,24 @@ function ensurePenjualanSchema($conn)
     }
 }
 
-// Jalankan penyesuaian skema (aman jika sudah pernah dijalankan).
-ensureUsersSchema($conn);
-ensurePenjualanSchema($conn);
-ensureBarangSchema($conn);
+// Jalankan penyesuaian skema seperlunya saja. SHOW COLUMNS/CREATE TABLE di setiap
+// request terasa mahal, apalagi database berada di server jaringan.
+$schema_version = '2026-06-03-login-token-barang-timestamps';
+if (($_SESSION['schema_version'] ?? '') !== $schema_version) {
+    ensureUsersSchema($conn);
+    ensurePenjualanSchema($conn);
+    ensureBarangSchema($conn);
+    $_SESSION['schema_version'] = $schema_version;
+}
 
 // Function untuk cek login
 function isLoggedIn()
 {
-    return isset($_SESSION['user_id']);
+    if (isset($_SESSION['user_id'])) {
+        return true;
+    }
+
+    return restoreRememberedLogin();
 }
 
 /** @deprecated Semua user login punya akses penuh; tetap ada untuk kompatibilitas. */
@@ -167,35 +188,9 @@ function checkPermission($owner_id = null)
 // Redirect jika belum login
 function requireLogin()
 {
-    global $conn;
-
     if (!isLoggedIn()) {
         header("Location: login");
         exit();
-    }
-
-    $session_timeout = getSessionTimeoutSeconds();
-    $user_id = $_SESSION['user_id'];
-
-    // Ambil last_login dari database
-    $query = "SELECT last_login FROM users WHERE id = ?";
-    $stmt = mysqli_prepare($conn, $query);
-    mysqli_stmt_bind_param($stmt, "i", $user_id);
-    mysqli_stmt_execute($stmt);
-    $result = mysqli_stmt_get_result($stmt);
-    $user = mysqli_fetch_assoc($result);
-
-    if ($user && $user['last_login']) {
-        // Konversi timestamp database ke unix time
-        $last_login_time = strtotime($user['last_login']);
-        $current_time = time();
-
-        if ($current_time - $last_login_time > $session_timeout) {
-            // Session expired, destroy dan redirect ke login
-            session_destroy();
-            header("Location: login?expired=1");
-            exit();
-        }
     }
 }
 
@@ -288,6 +283,107 @@ function getSessionTimeoutSeconds()
     return 30 * 24 * 60 * 60; // 30 hari
 }
 
+function rememberCookieName()
+{
+    return 'telurku_remember';
+}
+
+function getRememberTokenLifetime()
+{
+    return getSessionTimeoutSeconds();
+}
+
+function setRememberCookie($token, $expires)
+{
+    setcookie(rememberCookieName(), $token, [
+        'expires' => $expires,
+        'path' => '/',
+        'httponly' => true,
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+        'samesite' => 'Lax',
+    ]);
+}
+
+function clearRememberCookie()
+{
+    setcookie(rememberCookieName(), '', [
+        'expires' => time() - 3600,
+        'path' => '/',
+        'httponly' => true,
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+        'samesite' => 'Lax',
+    ]);
+}
+
+function loginUser($conn, $user)
+{
+    session_regenerate_id(true);
+    $_SESSION['user_id'] = $user['id'];
+    $_SESSION['username'] = $user['username'];
+    $_SESSION['nama'] = $user['nama'];
+    $_SESSION['login_time'] = time();
+
+    $token = bin2hex(random_bytes(32));
+    $token_hash = hash('sha256', $token);
+    $expires_at = date('Y-m-d H:i:s', time() + getRememberTokenLifetime());
+    $user_id = (int)$user['id'];
+
+    $query = "UPDATE users SET last_login = NOW(), remember_token_hash = ?, remember_token_expires_at = ? WHERE id = ?";
+    $stmt = mysqli_prepare($conn, $query);
+    mysqli_stmt_bind_param($stmt, "ssi", $token_hash, $expires_at, $user_id);
+    mysqli_stmt_execute($stmt);
+
+    setRememberCookie($token, time() + getRememberTokenLifetime());
+}
+
+function restoreRememberedLogin()
+{
+    global $conn;
+
+    $token = $_COOKIE[rememberCookieName()] ?? '';
+    if ($token === '') {
+        return false;
+    }
+
+    $token_hash = hash('sha256', $token);
+    $query = "SELECT id, username, nama FROM users WHERE remember_token_hash = ? AND remember_token_expires_at > NOW() LIMIT 1";
+    $stmt = mysqli_prepare($conn, $query);
+    mysqli_stmt_bind_param($stmt, "s", $token_hash);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    $user = mysqli_fetch_assoc($result);
+
+    if (!$user) {
+        clearRememberCookie();
+        return false;
+    }
+
+    $_SESSION['user_id'] = $user['id'];
+    $_SESSION['username'] = $user['username'];
+    $_SESSION['nama'] = $user['nama'];
+    $_SESSION['login_time'] = time();
+    return true;
+}
+
+function logoutUser($conn)
+{
+    if (isset($_SESSION['user_id'])) {
+        $user_id = (int)$_SESSION['user_id'];
+        $query = "UPDATE users SET remember_token_hash = NULL, remember_token_expires_at = NULL WHERE id = ?";
+        $stmt = mysqli_prepare($conn, $query);
+        mysqli_stmt_bind_param($stmt, "i", $user_id);
+        mysqli_stmt_execute($stmt);
+    }
+
+    clearRememberCookie();
+    $_SESSION = [];
+    if (ini_get('session.use_cookies')) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'] ?? '', $params['secure'] ?? false, $params['httponly'] ?? true);
+    }
+    session_destroy();
+}
+
 /**
  * Hitung modal (HPP) dari satu baris detail penjualan.
  */
@@ -353,15 +449,17 @@ function getDashboardStats($conn)
 {
     $today = getCurrentDate();
     $month = date('Y-m');
+    $tomorrow = date('Y-m-d', strtotime($today . ' +1 day'));
+    $next_month = date('Y-m', strtotime($month . '-01 +1 month'));
 
     $total_today = 0;
-    $q = mysqli_query($conn, "SELECT COALESCE(SUM(total_bayar),0) AS total FROM penjualan WHERE DATE(tanggal) = '$today'");
+    $q = mysqli_query($conn, "SELECT COALESCE(SUM(total_bayar),0) AS total FROM penjualan WHERE tanggal >= '$today' AND tanggal < '$tomorrow'");
     if ($q) {
         $total_today = (float)(mysqli_fetch_assoc($q)['total'] ?? 0);
     }
 
     $total_month = 0;
-    $q = mysqli_query($conn, "SELECT COALESCE(SUM(total_bayar),0) AS total FROM penjualan WHERE DATE_FORMAT(tanggal, '%Y-%m') = '$month'");
+    $q = mysqli_query($conn, "SELECT COALESCE(SUM(total_bayar),0) AS total FROM penjualan WHERE tanggal >= '$month-01' AND tanggal < '$next_month-01'");
     if ($q) {
         $total_month = (float)(mysqli_fetch_assoc($q)['total'] ?? 0);
     }
@@ -378,7 +476,7 @@ function getDashboardStats($conn)
         FROM penjualan p
         JOIN detail_penjualan dp ON p.id = dp.penjualan_id
         JOIN barang b ON dp.barang_id = b.id
-        WHERE DATE(p.tanggal) = '$today'");
+        WHERE p.tanggal >= '$today' AND p.tanggal < '$tomorrow'");
     if ($q) {
         while ($row = mysqli_fetch_assoc($q)) {
             $total_pendapatan_today += (float)$row['subtotal'];
@@ -397,11 +495,27 @@ function getDashboardStats($conn)
         }
     }
 
+    $total_pendapatan_month = 0;
+    $total_modal_month = 0;
+    $q = mysqli_query($conn, "SELECT dp.unit, dp.jumlah, dp.subtotal, b.harga_beli, b.isi_renteng, b.unit_type
+        FROM penjualan p
+        JOIN detail_penjualan dp ON p.id = dp.penjualan_id
+        JOIN barang b ON dp.barang_id = b.id
+        WHERE p.tanggal >= '$month-01' AND p.tanggal < '$next_month-01'");
+    if ($q) {
+        while ($row = mysqli_fetch_assoc($q)) {
+            $total_pendapatan_month += (float)$row['subtotal'];
+            $total_modal_month += hitungModalDetail($row);
+        }
+    }
+    $total_keuntungan_month = $total_pendapatan_month - $total_modal_month;
+
     return compact(
         'total_today',
         'total_month',
         'total_stok',
         'total_keuntungan_today',
+        'total_keuntungan_month',
         'aset_beli',
         'aset_jual'
     );

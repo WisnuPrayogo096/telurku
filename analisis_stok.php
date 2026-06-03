@@ -18,43 +18,32 @@ $query_hampir_habis = "SELECT b.* FROM barang b
     ORDER BY b.stok ASC, b.nama_barang ASC";
 $result_hampir_habis = mysqli_query($conn, $query_hampir_habis);
 
-function getMovingItems($conn, $interval_days, $is_fast, $limit = 10)
+function getMovingItems($conn, $interval_days, $is_fast)
 {
-    $order_dir = $is_fast ? 'DESC' : 'ASC';
-    $having = $is_fast ? 'HAVING total_terjual > 0' : '';
-    $stok_filter = $is_fast ? '' : 'AND b.stok > 0';
+    $where = $is_fast
+        ? "WHERE b.updated_at >= DATE_SUB(NOW(), INTERVAL $interval_days DAY)"
+        : "WHERE b.stok > 0";
+    $order = $is_fast
+        ? "b.updated_at DESC, b.nama_barang ASC"
+        : "b.updated_at ASC, b.nama_barang ASC";
 
     $query = "SELECT b.id, b.nama_barang, b.unit_type, b.isi_renteng, b.stok,
-              COALESCE(SUM(
-                  CASE
-                      WHEN p.id IS NULL THEN 0
-                      WHEN dp.unit = 'renteng' THEN dp.jumlah * GREATEST(b.isi_renteng, 1)
-                      WHEN dp.unit = '1 kg' THEN dp.jumlah * 1000
-                      WHEN dp.unit IN ('gram', 'gram (custom)') THEN dp.jumlah
-                      ELSE dp.jumlah
-                  END
-              ), 0) AS total_terjual
+              b.created_at, b.updated_at,
+              TIMESTAMPDIFF(DAY, b.updated_at, NOW()) AS idle_days
               FROM barang b
-              LEFT JOIN detail_penjualan dp ON b.id = dp.barang_id
-              LEFT JOIN penjualan p ON dp.penjualan_id = p.id
-                  AND p.tanggal >= DATE_SUB(NOW(), INTERVAL $interval_days DAY)
-              WHERE 1=1 $stok_filter
-              GROUP BY b.id, b.nama_barang, b.unit_type, b.isi_renteng, b.stok
-              $having
-              ORDER BY total_terjual $order_dir, b.nama_barang ASC
-              LIMIT $limit";
+              $where
+              ORDER BY $order";
 
     return mysqli_query($conn, $query);
 }
 
 function formatTerjualLabel($row)
 {
-    $qty = formatQty($row['total_terjual']);
-    if (($row['unit_type'] ?? '') === 'renteng' && (int)($row['isi_renteng'] ?? 0) > 0) {
-        $renteng = formatQty($row['total_terjual'] / max((int)$row['isi_renteng'], 1));
-        return $qty . ' pcs (~' . $renteng . ' renteng)';
+    if (!empty($row['updated_at'])) {
+        $idle = (int)($row['idle_days'] ?? 0);
+        return date('d/m/Y H:i', strtotime($row['updated_at'])) . ' (' . $idle . ' hari)';
     }
-    return $qty . ' ' . unitLabel($row['unit_type'] ?? 'pcs');
+    return '-';
 }
 
 function formatStokLabel($row)
@@ -98,21 +87,28 @@ require_once 'includes/navbar.php';
                     <span class="app-panel-title text-red-800"><i class="ph ph-x-circle"></i> Barang Habis</span>
                 </div>
                 <div class="p-4">
-                <table class="w-full analisis-table" id="tableHabis">
-                    <thead><tr class="text-left text-sm text-gray-600"><th>Barang</th><th></th></tr></thead>
-                    <tbody>
-                        <?php if (mysqli_num_rows($result_habis) > 0): ?>
-                            <?php while ($row = mysqli_fetch_assoc($result_habis)): ?>
+                    <table class="w-full analisis-table" id="tableHabis">
+                        <thead>
+                            <tr class="text-left text-sm text-gray-600">
+                                <th>Barang</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (mysqli_num_rows($result_habis) > 0): ?>
+                                <?php while ($row = mysqli_fetch_assoc($result_habis)): ?>
+                                    <tr>
+                                        <td class="py-2 font-medium"><?php echo htmlspecialchars($row['nama_barang']); ?></td>
+                                        <td class="py-2 text-right"><a href="stok_masuk" class="btn btn-secondary !py-1 !px-2 text-xs">Restock</a></td>
+                                    </tr>
+                                <?php endwhile; ?>
+                            <?php else: ?>
                                 <tr>
-                                    <td class="py-2 font-medium"><?php echo htmlspecialchars($row['nama_barang']); ?></td>
-                                    <td class="py-2 text-right"><a href="stok_masuk" class="btn btn-secondary !py-1 !px-2 text-xs">Restock</a></td>
+                                    <td colspan="2" class="py-4 text-center text-gray-500">Tidak ada barang habis.</td>
                                 </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr><td colspan="2" class="py-4 text-center text-gray-500">Tidak ada barang habis.</td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
             <div class="app-panel overflow-hidden border-t-4 border-t-orange-400">
@@ -120,21 +116,28 @@ require_once 'includes/navbar.php';
                     <span class="app-panel-title text-orange-800"><i class="ph ph-warning"></i> Hampir Habis</span>
                 </div>
                 <div class="p-4">
-                <table class="w-full analisis-table" id="tableHampir">
-                    <thead><tr class="text-left text-sm text-gray-600"><th>Barang</th><th class="text-right">Sisa</th></tr></thead>
-                    <tbody>
-                        <?php if (mysqli_num_rows($result_hampir_habis) > 0): ?>
-                            <?php while ($row = mysqli_fetch_assoc($result_hampir_habis)): ?>
+                    <table class="w-full analisis-table" id="tableHampir">
+                        <thead>
+                            <tr class="text-left text-sm text-gray-600">
+                                <th>Barang</th>
+                                <th class="text-right">Sisa</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (mysqli_num_rows($result_hampir_habis) > 0): ?>
+                                <?php while ($row = mysqli_fetch_assoc($result_hampir_habis)): ?>
+                                    <tr>
+                                        <td class="py-2 font-medium"><?php echo htmlspecialchars($row['nama_barang']); ?></td>
+                                        <td class="py-2 text-right text-orange-600 font-semibold"><?php echo formatStokLabel($row); ?></td>
+                                    </tr>
+                                <?php endwhile; ?>
+                            <?php else: ?>
                                 <tr>
-                                    <td class="py-2 font-medium"><?php echo htmlspecialchars($row['nama_barang']); ?></td>
-                                    <td class="py-2 text-right text-orange-600 font-semibold"><?php echo formatStokLabel($row); ?></td>
+                                    <td colspan="2" class="py-4 text-center text-gray-500">Stok masih aman.</td>
                                 </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr><td colspan="2" class="py-4 text-center text-gray-500">Stok masih aman.</td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -144,33 +147,40 @@ require_once 'includes/navbar.php';
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <?php
             $fast_tables = [
-                ['id' => 'fastMinggu', 'title' => 'Top Laris (7 Hari)', 'result' => $fast_mingguan],
-                ['id' => 'fastBulan', 'title' => 'Top Laris (30 Hari)', 'result' => $fast_bulanan],
+                ['id' => 'fastMinggu', 'title' => 'Aktif Berubah (7 Hari)', 'result' => $fast_mingguan],
+                ['id' => 'fastBulan', 'title' => 'Aktif Berubah (30 Hari)', 'result' => $fast_bulanan],
             ];
             foreach ($fast_tables as $ft):
             ?>
-            <div class="app-panel overflow-hidden">
-                <div class="app-panel-header !bg-emerald-50">
-                    <span class="app-panel-title text-emerald-800"><?php echo $ft['title']; ?></span>
-                </div>
-                <div class="p-4">
-                <table class="w-full analisis-table" id="<?php echo $ft['id']; ?>">
-                    <thead><tr class="text-sm text-gray-600"><th>Barang</th><th class="text-right">Terjual</th></tr></thead>
-                    <tbody>
-                        <?php if (mysqli_num_rows($ft['result']) > 0): ?>
-                            <?php while ($row = mysqli_fetch_assoc($ft['result'])): ?>
-                                <tr>
-                                    <td class="py-2"><?php echo htmlspecialchars($row['nama_barang']); ?></td>
-                                    <td class="py-2 text-right font-semibold text-green-600"><?php echo formatTerjualLabel($row); ?></td>
+                <div class="app-panel overflow-hidden">
+                    <div class="app-panel-header !bg-emerald-50">
+                        <span class="app-panel-title text-emerald-800"><?php echo $ft['title']; ?></span>
+                    </div>
+                    <div class="p-4">
+                        <table class="w-full analisis-table" id="<?php echo $ft['id']; ?>">
+                            <thead>
+                                <tr class="text-sm text-gray-600">
+                                    <th>Barang</th>
+                                    <th class="text-right">Update Terakhir</th>
                                 </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr><td colspan="2" class="py-4 text-center text-gray-500">Belum ada penjualan.</td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
+                            </thead>
+                            <tbody>
+                                <?php if (mysqli_num_rows($ft['result']) > 0): ?>
+                                    <?php while ($row = mysqli_fetch_assoc($ft['result'])): ?>
+                                        <tr>
+                                            <td class="py-2"><?php echo htmlspecialchars($row['nama_barang']); ?></td>
+                                            <td class="py-2 text-right font-semibold text-green-600"><?php echo formatTerjualLabel($row); ?></td>
+                                        </tr>
+                                    <?php endwhile; ?>
+                                <?php else: ?>
+                                    <tr>
+                                        <td colspan="2" class="py-4 text-center text-gray-500">Belum ada perubahan stok.</td>
+                                    </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
             <?php endforeach; ?>
         </div>
     </div>
@@ -182,52 +192,58 @@ require_once 'includes/navbar.php';
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <?php
             $slow_tables = [
-                ['id' => 'slowMinggu', 'title' => 'Kurang Laku (7 Hari)', 'result' => $slow_mingguan],
-                ['id' => 'slowBulan', 'title' => 'Kurang Laku (30 Hari)', 'result' => $slow_bulanan],
+                ['id' => 'slowMinggu', 'title' => 'Lama Tidak Berubah (7 Hari)', 'result' => $slow_mingguan],
+                ['id' => 'slowBulan', 'title' => 'Lama Tidak Berubah (30 Hari)', 'result' => $slow_bulanan],
             ];
             foreach ($slow_tables as $st):
             ?>
-            <div class="app-panel overflow-hidden">
-                <div class="app-panel-header">
-                    <span class="app-panel-title"><?php echo $st['title']; ?></span>
+                <div class="app-panel overflow-hidden">
+                    <div class="app-panel-header">
+                        <span class="app-panel-title"><?php echo $st['title']; ?></span>
+                    </div>
+                    <div class="p-4">
+                        <table class="w-full analisis-table" id="<?php echo $st['id']; ?>">
+                            <thead>
+                                <tr class="text-sm text-gray-600">
+                                    <th>Barang</th>
+                                    <th class="text-center">Stok</th>
+                                    <th class="text-right">Update Terakhir</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php while ($row = mysqli_fetch_assoc($st['result'])): ?>
+                                    <tr>
+                                        <td class="py-2"><?php echo htmlspecialchars($row['nama_barang']); ?></td>
+                                        <td class="py-2 text-center text-gray-600"><?php echo formatStokLabel($row); ?></td>
+                                        <td class="py-2 text-right font-semibold text-gray-700"><?php echo formatTerjualLabel($row); ?></td>
+                                    </tr>
+                                <?php endwhile; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <div class="p-4">
-                <table class="w-full analisis-table" id="<?php echo $st['id']; ?>">
-                    <thead><tr class="text-sm text-gray-600"><th>Barang</th><th class="text-center">Stok</th><th class="text-right">Terjual</th></tr></thead>
-                    <tbody>
-                        <?php while ($row = mysqli_fetch_assoc($st['result'])): ?>
-                            <tr>
-                                <td class="py-2"><?php echo htmlspecialchars($row['nama_barang']); ?></td>
-                                <td class="py-2 text-center text-gray-600"><?php echo formatStokLabel($row); ?></td>
-                                <td class="py-2 text-right font-semibold <?php echo $row['total_terjual'] == 0 ? 'text-red-500' : 'text-gray-700'; ?>"><?php echo formatTerjualLabel($row); ?></td>
-                            </tr>
-                        <?php endwhile; ?>
-                    </tbody>
-                </table>
-                </div>
-            </div>
             <?php endforeach; ?>
         </div>
     </div>
 </div>
 
 <script>
-function showTab(tabId) {
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-    document.querySelectorAll('.app-tab').forEach(el => el.classList.remove('active'));
-    document.getElementById(tabId).classList.remove('hidden');
-    document.getElementById('btn-' + tabId).classList.add('active');
-}
+    function showTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.app-tab').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId).classList.remove('hidden');
+        document.getElementById('btn-' + tabId).classList.add('active');
+    }
 </script>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script src="assets/js/datatables-default.js"></script>
 <script>
-$(function() {
-    $('.analisis-table').each(function() {
-        if ($(this).find('tbody tr td[colspan]').length) return;
-        initDefaultDataTable(this);
+    $(function() {
+        $('.analisis-table').each(function() {
+            if ($(this).find('tbody tr td[colspan]').length) return;
+            initDefaultDataTable(this);
+        });
     });
-});
 </script>
 <?php require_once 'includes/footer.php'; ?>

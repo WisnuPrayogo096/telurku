@@ -146,34 +146,37 @@ require_once 'includes/flash.php';
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script src="assets/js/datatables-default.js"></script>
 <script>
-$(document).ready(function() {
-    initDefaultDataTable('#stokMasukTable', {
-        language: { emptyTable: 'Belum ada riwayat stok masuk.' }
-    });
+    $(document).ready(function() {
+        initDefaultDataTable('#stokMasukTable', {
+            language: {
+                emptyTable: 'Belum ada riwayat stok masuk.'
+            }
+        });
 
-    $('#totalHargaBeliDisplay').text(new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        maximumFractionDigits: 0
-    }).format(<?php echo (float)$total_harga_beli; ?>));
+        $('#totalHargaBeliDisplay').text(new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(<?php echo (float)$total_harga_beli; ?>));
 
-    let deleteId = null;
-    $('.delete-btn').on('click', function() {
-        deleteId = $(this).data('delete-id');
-        $('#deleteModal').removeClass('hidden');
-    });
+        let deleteId = null;
+        $('.delete-btn').on('click', function() {
+            deleteId = $(this).data('delete-id');
+            $('#deleteModal').removeClass('hidden');
+        });
 
-    $('#confirmDeleteBtn').on('click', function() {
-        if (deleteId) {
-            window.location.href = `?delete=${deleteId}&tanggal=<?php echo urlencode($tanggal_filter); ?>`;
-        }
-    });
+        $('#confirmDeleteBtn').on('click', function() {
+            if (deleteId) {
+                window.location.href = `?delete=${deleteId}&tanggal=<?php echo urlencode($tanggal_filter); ?>`;
+            }
+        });
 
-    document.querySelectorAll('.app-modal-backdrop').forEach(m => {
-        m.addEventListener('click', function(e) {
-            if (e.target === this) this.classList.add('hidden');
+        document.querySelectorAll('.app-modal-backdrop').forEach(m => {
+            m.addEventListener('click', function(e) {
+                if (e.target === this) this.classList.add('hidden');
+            });
         });
     });
-});
 </script>
 <?php require_once 'includes/footer.php'; ?>

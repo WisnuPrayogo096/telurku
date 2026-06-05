@@ -5,6 +5,10 @@ requireLogin();
 $stats = getDashboardStats($conn);
 extract($stats);
 
+// Get chart data
+$dailyChart = getDailyChartData($conn, 30);
+$monthlyChart = getMonthlyChartData($conn, 12);
+
 $pageTitle = 'Dashboard - Toko Rahmat Jaya';
 $extraHead = '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>';
 require_once 'includes/head.php';
@@ -69,16 +73,25 @@ require_once 'includes/navbar.php';
     <h2 class="text-lg font-bold text-slate-800 mb-3 mt-6 flex items-center gap-2">
         <i class="ph ph-chart-pie-slice text-brand"></i> Analisis Penjualan
     </h2>
-    
+
     <div class="chart-grid">
+        <!-- Daily Sales & Profit Chart -->
         <div class="chart-panel full-width">
-            <div class="chart-panel-title"><i class="ph ph-chart-line"></i> Grafik Penjualan 7 Hari Terakhir</div>
-            <div class="chart-canvas-wrap">
-                <canvas id="chartPenjualanHarian"></canvas>
+            <div class="chart-panel-title"><i class="ph ph-chart-line"></i> Penjualan & Keuntungan (30 Hari Terakhir)</div>
+            <div class="chart-canvas-wrap" style="max-height: 320px;">
+                <canvas id="chartDailyTrend"></canvas>
             </div>
         </div>
-        
-        <div class="chart-panel">
+
+        <!-- Monthly Sales & Profit Chart -->
+        <div class="chart-panel full-width">
+            <div class="chart-panel-title"><i class="ph ph-chart-line"></i> Penjualan & Keuntungan (12 Bulan Terakhir)</div>
+            <div class="chart-canvas-wrap" style="max-height: 320px;">
+                <canvas id="chartMonthlyTrend"></canvas>
+            </div>
+        </div>
+
+        <!-- <div class="chart-panel">
             <div class="chart-panel-title"><i class="ph ph-trophy"></i> Top 5 Barang Terlaris</div>
             <div class="chart-canvas-wrap">
                 <canvas id="chartTopBarang"></canvas>
@@ -104,131 +117,285 @@ require_once 'includes/navbar.php';
             <div class="chart-canvas-wrap">
                 <canvas id="chartPelanggan"></canvas>
             </div>
-        </div>
+        </div> -->
     </div>
 </div>
 
 <script>
-document.addEventListener("DOMContentLoaded", function() {
-    Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
-    Chart.defaults.color = '#64748b';
-    const brandColor = '#0ea5e9';
-    const gridColor = '#e2e8f0';
+    document.addEventListener("DOMContentLoaded", function() {
+        Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+        Chart.defaults.color = '#64748b';
+        const brandColor = '#0ea5e9';
+        const successColor = '#22c55e';
+        const gridColor = '#e2e8f0';
 
-    // 1. Chart Penjualan Harian
-    new Chart(document.getElementById('chartPenjualanHarian'), {
-        type: 'line',
-        data: {
-            labels: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'],
-            datasets: [{
-                label: 'Total Penjualan (Rp)',
-                data: [1500000, 2100000, 1800000, 2400000, 2200000, 3100000, 3500000],
-                borderColor: brandColor,
-                backgroundColor: 'rgba(14, 165, 233, 0.1)',
-                borderWidth: 2,
-                tension: 0.3,
-                fill: true,
-                pointBackgroundColor: brandColor
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                y: { beginAtZero: true, grid: { color: gridColor } },
-                x: { grid: { display: false } }
+        // Daily Trend Chart (30 hari)
+        new Chart(document.getElementById('chartDailyTrend'), {
+            type: 'line',
+            data: {
+                labels: <?php echo json_encode($dailyChart['labels']); ?>,
+                datasets: [{
+                        label: 'Penjualan (Rp)',
+                        data: <?php echo json_encode($dailyChart['sales_data']); ?>,
+                        borderColor: brandColor,
+                        backgroundColor: 'rgba(14, 165, 233, 0.08)',
+                        borderWidth: 2.5,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: brandColor,
+                        pointBorderWidth: 0,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Keuntungan (Rp)',
+                        data: <?php echo json_encode($dailyChart['profit_data']); ?>,
+                        borderColor: successColor,
+                        backgroundColor: 'rgba(34, 197, 94, 0.08)',
+                        borderWidth: 2.5,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: successColor,
+                        pointBorderWidth: 0,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        grid: {
+                            color: gridColor
+                        },
+                        beginAtZero: true
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
             }
-        }
-    });
+        });
 
-    // 2. Chart Top 5 Barang
-    new Chart(document.getElementById('chartTopBarang'), {
-        type: 'bar',
-        data: {
-            labels: ['Beras 5kg', 'Minyak 2L', 'Gula 1kg', 'Indomie', 'Telur 1kg'],
-            datasets: [{
-                label: 'Terjual',
-                data: [45, 82, 60, 150, 40],
-                backgroundColor: ['#0ea5e9', '#22c55e', '#f59e0b', '#f43f5e', '#a855f7'],
-                borderRadius: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                y: { beginAtZero: true, grid: { color: gridColor } },
-                x: { grid: { display: false } }
+        // Monthly Trend Chart (12 bulan)
+        new Chart(document.getElementById('chartMonthlyTrend'), {
+            type: 'line',
+            data: {
+                labels: <?php echo json_encode($monthlyChart['labels']); ?>,
+                datasets: [{
+                        label: 'Penjualan (Rp)',
+                        data: <?php echo json_encode($monthlyChart['sales_data']); ?>,
+                        borderColor: brandColor,
+                        backgroundColor: 'rgba(14, 165, 233, 0.08)',
+                        borderWidth: 2.5,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: brandColor,
+                        pointBorderWidth: 0,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Keuntungan (Rp)',
+                        data: <?php echo json_encode($monthlyChart['profit_data']); ?>,
+                        borderColor: successColor,
+                        backgroundColor: 'rgba(34, 197, 94, 0.08)',
+                        borderWidth: 2.5,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: successColor,
+                        pointBorderWidth: 0,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        grid: {
+                            color: gridColor
+                        },
+                        beginAtZero: true
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
             }
-        }
-    });
+        });
 
-    // 3. Chart Komposisi Kategori
-    new Chart(document.getElementById('chartKategori'), {
-        type: 'doughnut',
-        data: {
-            labels: ['Sembako', 'Minuman', 'Snack', 'Rokok', 'Lainnya'],
-            datasets: [{
-                data: [40, 20, 15, 15, 10],
-                backgroundColor: ['#0ea5e9', '#22c55e', '#f59e0b', '#f43f5e', '#a855f7'],
-                borderWidth: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '70%',
-            plugins: {
-                legend: { position: 'right' }
+        // 2. Chart Top 5 Barang
+        new Chart(document.getElementById('chartTopBarang'), {
+            type: 'bar',
+            data: {
+                labels: ['Beras 5kg', 'Minyak 2L', 'Gula 1kg', 'Indomie', 'Telur 1kg'],
+                datasets: [{
+                    label: 'Terjual',
+                    data: [45, 82, 60, 150, 40],
+                    backgroundColor: [brandColor, successColor, '#f59e0b', '#f43f5e', '#a855f7'],
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: gridColor
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
             }
-        }
-    });
+        });
 
-    // 4. Chart Tren Keuntungan Harian
-    new Chart(document.getElementById('chartKeuntungan'), {
-        type: 'bar',
-        data: {
-            labels: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'],
-            datasets: [{
-                label: 'Keuntungan (Rp)',
-                data: [350000, 480000, 420000, 560000, 510000, 720000, 850000],
-                backgroundColor: '#22c55e',
-                borderRadius: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                y: { beginAtZero: true, grid: { color: gridColor } },
-                x: { grid: { display: false } }
+        // 3. Chart Komposisi Kategori
+        new Chart(document.getElementById('chartKategori'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Sembako', 'Minuman', 'Snack', 'Rokok', 'Lainnya'],
+                datasets: [{
+                    data: [40, 20, 15, 15, 10],
+                    backgroundColor: [brandColor, successColor, '#f59e0b', '#f43f5e', '#a855f7'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '70%',
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    }
+                }
             }
-        }
-    });
+        });
 
-    // 5. Chart Tipe Pelanggan
-    new Chart(document.getElementById('chartPelanggan'), {
-        type: 'pie',
-        data: {
-            labels: ['Umum', 'Grosir', 'Langganan'],
-            datasets: [{
-                data: [65, 20, 15],
-                backgroundColor: ['#0ea5e9', '#f59e0b', '#6366f1'],
-                borderWidth: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom' }
+        // 4. Chart Tren Keuntungan Harian
+        new Chart(document.getElementById('chartKeuntungan'), {
+            type: 'bar',
+            data: {
+                labels: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'],
+                datasets: [{
+                    label: 'Keuntungan (Rp)',
+                    data: [350000, 480000, 420000, 560000, 510000, 720000, 850000],
+                    backgroundColor: successColor,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: gridColor
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
             }
-        }
+        });
+
+        // 5. Chart Tipe Pelanggan
+        new Chart(document.getElementById('chartPelanggan'), {
+            type: 'pie',
+            data: {
+                labels: ['Umum', 'Grosir', 'Langganan'],
+                datasets: [{
+                    data: [65, 20, 15],
+                    backgroundColor: [brandColor, '#f59e0b', '#6366f1'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
     });
-});
 </script>
 
 <?php require_once 'includes/footer.php'; ?>

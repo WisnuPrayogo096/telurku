@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_tambah'])) {
 
             $unit_type = $_POST['unit_type'][$idx] ?? 'pcs';
             $harga_beli = (float)($_POST['harga_beli'][$idx] ?? 0);
-            
+
             $harga_jual = 0;
             $harga_jual_renteng = 0;
             $harga_jual_pcs = 0;
@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_tambah'])) {
                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = mysqli_prepare($conn, $query);
             mysqli_stmt_bind_param($stmt, "ssiddddd", $nama_barang, $unit_type, $isi_renteng, $harga_beli, $harga_jual, $harga_jual_renteng, $harga_jual_pcs, $stok);
-            
+
             if (!mysqli_stmt_execute($stmt)) {
                 throw new Exception('Gagal menyimpan data!');
             }
@@ -160,7 +160,7 @@ require_once 'includes/flash.php';
                         <button type="button" class="btn-generate" onclick="generateGram(${idx})"><i class="ph ph-magic-wand"></i> Generate Harga Jual</button>
                     </div>
                     <div class="form-row-full">
-                        <label class="app-label">Harga Jual per Gram</label>
+                        <label class="app-label">Harga Jual per 1 KG</label>
                         <input type="number" step="0.0001" name="harga_jual[${idx}]" id="hj_gram_${idx}" class="app-input generated-field" required>
                         <p class="text-xs text-gray-500 mt-1">Bisa pakai koma desimal.</p>
                     </div>
@@ -204,10 +204,10 @@ require_once 'includes/flash.php';
     function addFormItem() {
         const idx = itemCounter++;
         const container = document.getElementById('formContainer');
-        
+
         const card = document.createElement('div');
         card.className = 'app-panel mb-6 border-brand border-2 overflow-hidden item-block';
-        
+
         card.innerHTML = `
             <div class="app-panel-header bg-brand-light">
                 <span class="app-panel-title">Barang #${idx + 1}</span>
@@ -235,19 +235,19 @@ require_once 'includes/flash.php';
                 </div>
             </div>
         `;
-        
+
         container.appendChild(card);
-        
+
         const unitSelect = card.querySelector('.unit-select');
         const unitContainer = card.querySelector('.unit-fields-container');
-        
+
         unitSelect.addEventListener('change', (e) => {
             renderUnitFields(unitContainer, e.target.value, idx);
         });
-        
+
         // Initial render
         renderUnitFields(unitContainer, 'renteng', idx);
-        
+
         // Focus on first input
         card.querySelector('input[type="text"]').focus();
     }

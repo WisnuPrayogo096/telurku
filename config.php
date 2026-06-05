@@ -30,144 +30,7 @@ if (!$conn) {
 // Set charset
 mysqli_set_charset($conn, "utf8");
 
-/**
- * Pastikan skema tabel barang memiliki kolom pendukung satuan.
- * Ini auto-migrasi ringan agar fitur satuan (renteng/gram/pcs) bisa dipakai.
- */
-function ensureBarangSchema($conn)
-{
-    $columns = [];
-    if ($result = mysqli_query($conn, "SHOW COLUMNS FROM barang")) {
-        while ($row = mysqli_fetch_assoc($result)) {
-            $columns[$row['Field']] = $row;
-        }
-    }
-
-    $alterParts = [];
-    if (!isset($columns['unit_type'])) {
-        $alterParts[] = "ADD COLUMN unit_type ENUM('renteng','gram','pcs') NOT NULL DEFAULT 'pcs' AFTER nama_barang";
-    }
-    if (!isset($columns['isi_renteng'])) {
-        $alterParts[] = "ADD COLUMN isi_renteng INT NOT NULL DEFAULT 0 AFTER unit_type";
-    }
-    if (!isset($columns['harga_jual_renteng'])) {
-        $alterParts[] = "ADD COLUMN harga_jual_renteng DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER harga_jual";
-    }
-    if (!isset($columns['harga_jual_pcs'])) {
-        $alterParts[] = "ADD COLUMN harga_jual_pcs DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER harga_jual_renteng";
-    }
-    if (!isset($columns['created_at'])) {
-        $alterParts[] = "ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP";
-    }
-    if (!isset($columns['updated_at'])) {
-        $alterParts[] = "ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP";
-    }
-
-    if ($alterParts) {
-        // Jalankan satu ALTER TABLE untuk semua kolom baru.
-        mysqli_query($conn, "ALTER TABLE barang " . implode(', ', $alterParts));
-    }
-
-    if (isset($columns['unit_type']) && strpos($columns['unit_type']['Type'], "'renteng'") === false) {
-        mysqli_query($conn, "ALTER TABLE barang MODIFY COLUMN unit_type ENUM('pcs','kg','gram','renteng') NOT NULL DEFAULT 'pcs'");
-        mysqli_query($conn, "UPDATE barang SET stok = stok * 1000, unit_type = 'gram' WHERE unit_type = 'kg'");
-        mysqli_query($conn, "UPDATE barang SET unit_type = 'renteng' WHERE unit_type = 'pcs' AND isi_renteng > 0");
-        mysqli_query($conn, "ALTER TABLE barang MODIFY COLUMN unit_type ENUM('renteng','gram','pcs') NOT NULL DEFAULT 'pcs'");
-    }
-
-    // Pastikan tabel detail_penjualan memiliki kolom unit
-    $detail_columns = [];
-    if ($result = mysqli_query($conn, "SHOW COLUMNS FROM detail_penjualan")) {
-        while ($row = mysqli_fetch_assoc($result)) {
-            $detail_columns[$row['Field']] = $row;
-        }
-    }
-
-    $detail_alter = [];
-    if (!isset($detail_columns['unit'])) {
-        $detail_alter[] = "ADD COLUMN unit VARCHAR(20) NOT NULL DEFAULT 'pcs' AFTER jumlah";
-    } else {
-        // Change from ENUM to VARCHAR if needed
-        if (strpos($detail_columns['unit']['Type'], 'enum') !== false) {
-            $detail_alter[] = "MODIFY COLUMN unit VARCHAR(20) NOT NULL DEFAULT 'pcs'";
-        }
-    }
-
-    if ($detail_alter) {
-        mysqli_query($conn, "ALTER TABLE detail_penjualan " . implode(', ', $detail_alter));
-    }
-
-    // Buat tabel stok_masuk jika belum ada
-    $sql_stok_masuk = "CREATE TABLE IF NOT EXISTS stok_masuk (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        tanggal DATE NOT NULL,
-        barang_id INT NOT NULL,
-        jumlah_tambah DECIMAL(10,2) NOT NULL DEFAULT 0,
-        harga_beli DECIMAL(10,2) NOT NULL DEFAULT 0,
-        harga_jual DECIMAL(10,2) NOT NULL DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (barang_id) REFERENCES barang(id) ON DELETE CASCADE
-    )";
-    mysqli_query($conn, $sql_stok_masuk);
-
-    $sql_stok_keluar = "CREATE TABLE IF NOT EXISTS stok_keluar (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        tanggal DATE NOT NULL,
-        barang_id INT NOT NULL,
-        jumlah_kurang DECIMAL(10,2) NOT NULL DEFAULT 0,
-        keterangan VARCHAR(255) NOT NULL DEFAULT 'Keperluan pribadi',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (barang_id) REFERENCES barang(id) ON DELETE CASCADE
-    )";
-    mysqli_query($conn, $sql_stok_keluar);
-}
-
-// Pastikan tabel users memiliki kolom token untuk persistent login 30 hari.
-function ensureUsersSchema($conn)
-{
-    $columns = [];
-    if ($result = mysqli_query($conn, "SHOW COLUMNS FROM users")) {
-        while ($row = mysqli_fetch_assoc($result)) {
-            $columns[$row['Field']] = $row;
-        }
-    }
-
-    if (!isset($columns['last_login'])) {
-        mysqli_query($conn, "ALTER TABLE users ADD COLUMN last_login TIMESTAMP NULL");
-    }
-    if (!isset($columns['remember_token_hash'])) {
-        mysqli_query($conn, "ALTER TABLE users ADD COLUMN remember_token_hash CHAR(64) NULL AFTER last_login");
-    }
-    if (!isset($columns['remember_token_expires_at'])) {
-        mysqli_query($conn, "ALTER TABLE users ADD COLUMN remember_token_expires_at DATETIME NULL AFTER remember_token_hash");
-    }
-}
-
-// Pastikan tabel penjualan memiliki kolom tanggal sebagai DATETIME
-function ensurePenjualanSchema($conn)
-{
-    $columns = [];
-    if ($result = mysqli_query($conn, "SHOW COLUMNS FROM penjualan")) {
-        while ($row = mysqli_fetch_assoc($result)) {
-            $columns[$row['Field']] = $row;
-        }
-    }
-
-    // Ubah kolom tanggal dari DATE ke DATETIME
-    if (isset($columns['tanggal']) && $columns['tanggal']['Type'] === 'date') {
-        mysqli_query($conn, "ALTER TABLE penjualan MODIFY COLUMN tanggal DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP");
-    }
-}
-
-// Jalankan penyesuaian skema seperlunya saja. SHOW COLUMNS/CREATE TABLE di setiap
-// request terasa mahal, apalagi database berada di server jaringan.
-$schema_version = '2026-06-03-login-token-barang-timestamps';
-if (($_SESSION['schema_version'] ?? '') !== $schema_version) {
-    ensureUsersSchema($conn);
-    ensurePenjualanSchema($conn);
-    ensureBarangSchema($conn);
-    $_SESSION['schema_version'] = $schema_version;
-}
+// Schema sudah fixed via migration, tidak perlu auto-ensure lagi
 
 // Function untuk cek login
 function isLoggedIn()
@@ -194,10 +57,10 @@ function requireLogin()
     }
 }
 
-// Format rupiah
+// Format rupiah - tampilkan 2 desimal untuk support angka desimal
 function formatRupiah($angka)
 {
-    return "Rp " . number_format($angka, 0, ',', '.');
+    return "Rp " . number_format($angka, 2, ',', '.');
 }
 
 function unitLabel($unit)
@@ -395,7 +258,7 @@ function hitungModalDetail($row)
     $unit_type = $row['unit_type'] ?? 'pcs';
 
     if ($unit_type === 'gram' || $unit === 'gram' || $unit === 'gram (custom)') {
-        return ($modal_satuan / 1000) * $jumlah;
+        return hargaBeliGramSatuan($modal_satuan) * $jumlah;
     }
 
     if ($unit === 'renteng') {
@@ -403,11 +266,60 @@ function hitungModalDetail($row)
         return $modal_satuan * $jumlah_pcs;
     }
 
-    if ($unit === '1 kg') {
-        return ($modal_satuan / 1000) * ($jumlah * 1000);
+    return $modal_satuan * $jumlah;
+}
+
+function hitungKeuntunganDetail($row)
+{
+    if ((float)($row['harga_beli'] ?? 0) <= 0) {
+        return 0;
     }
 
-    return $modal_satuan * $jumlah;
+    return (float)($row['subtotal'] ?? 0) - hitungModalDetail($row);
+}
+
+function hargaBeliGramSatuan($harga_beli)
+{
+    $harga_beli = (float)$harga_beli;
+    if ($harga_beli <= 0) {
+        return 0;
+    }
+
+    return $harga_beli < 1000 ? $harga_beli : $harga_beli / 1000;
+}
+
+/**
+ * Ringkasan penjualan berdasarkan rentang waktu.
+ */
+function getSalesSummaryByDateRange($conn, $start, $end)
+{
+    $summary = [
+        'total_penjualan' => 0,
+        'total_modal' => 0,
+        'total_keuntungan' => 0,
+    ];
+
+    $query = "SELECT dp.unit, dp.jumlah, dp.subtotal, b.harga_beli, b.isi_renteng, b.unit_type
+        FROM penjualan p
+        JOIN detail_penjualan dp ON p.id = dp.penjualan_id
+        JOIN barang b ON dp.barang_id = b.id
+        WHERE p.tanggal >= ? AND p.tanggal < ?";
+    $stmt = mysqli_prepare($conn, $query);
+    if (!$stmt) {
+        return $summary;
+    }
+
+    mysqli_stmt_bind_param($stmt, "ss", $start, $end);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+
+    while ($row = mysqli_fetch_assoc($result)) {
+        $summary['total_penjualan'] += (float)$row['subtotal'];
+        $summary['total_modal'] += hitungModalDetail($row);
+        $summary['total_keuntungan'] += hitungKeuntunganDetail($row);
+    }
+
+    return $summary;
 }
 
 /**
@@ -420,6 +332,10 @@ function hitungNilaiStokBarang($row, $field = 'harga_beli')
     $isi_renteng = max((int)($row['isi_renteng'] ?? 0), 0);
 
     if ($unit_type === 'gram') {
+        if ($field === 'harga_beli') {
+            return $stok * hargaBeliGramSatuan($row['harga_beli'] ?? 0);
+        }
+
         return ($stok / 1000) * (float)($row[$field] ?? 0);
     }
 
@@ -452,17 +368,11 @@ function getDashboardStats($conn)
     $tomorrow = date('Y-m-d', strtotime($today . ' +1 day'));
     $next_month = date('Y-m', strtotime($month . '-01 +1 month'));
 
-    $total_today = 0;
-    $q = mysqli_query($conn, "SELECT COALESCE(SUM(total_bayar),0) AS total FROM penjualan WHERE tanggal >= '$today' AND tanggal < '$tomorrow'");
-    if ($q) {
-        $total_today = (float)(mysqli_fetch_assoc($q)['total'] ?? 0);
-    }
+    $today_summary = getSalesSummaryByDateRange($conn, $today, $tomorrow);
+    $total_today = $today_summary['total_penjualan'];
 
-    $total_month = 0;
-    $q = mysqli_query($conn, "SELECT COALESCE(SUM(total_bayar),0) AS total FROM penjualan WHERE tanggal >= '$month-01' AND tanggal < '$next_month-01'");
-    if ($q) {
-        $total_month = (float)(mysqli_fetch_assoc($q)['total'] ?? 0);
-    }
+    $month_summary = getSalesSummaryByDateRange($conn, "$month-01", "$next_month-01");
+    $total_month = $month_summary['total_penjualan'];
 
     $total_stok = 0;
     $q = mysqli_query($conn, "SELECT COUNT(*) AS total FROM barang");
@@ -470,20 +380,7 @@ function getDashboardStats($conn)
         $total_stok = (int)(mysqli_fetch_assoc($q)['total'] ?? 0);
     }
 
-    $total_pendapatan_today = 0;
-    $total_modal_today = 0;
-    $q = mysqli_query($conn, "SELECT dp.unit, dp.jumlah, dp.subtotal, b.harga_beli, b.isi_renteng, b.unit_type
-        FROM penjualan p
-        JOIN detail_penjualan dp ON p.id = dp.penjualan_id
-        JOIN barang b ON dp.barang_id = b.id
-        WHERE p.tanggal >= '$today' AND p.tanggal < '$tomorrow'");
-    if ($q) {
-        while ($row = mysqli_fetch_assoc($q)) {
-            $total_pendapatan_today += (float)$row['subtotal'];
-            $total_modal_today += hitungModalDetail($row);
-        }
-    }
-    $total_keuntungan_today = $total_pendapatan_today - $total_modal_today;
+    $total_keuntungan_today = $today_summary['total_keuntungan'];
 
     $aset_beli = 0;
     $aset_jual = 0;
@@ -495,20 +392,7 @@ function getDashboardStats($conn)
         }
     }
 
-    $total_pendapatan_month = 0;
-    $total_modal_month = 0;
-    $q = mysqli_query($conn, "SELECT dp.unit, dp.jumlah, dp.subtotal, b.harga_beli, b.isi_renteng, b.unit_type
-        FROM penjualan p
-        JOIN detail_penjualan dp ON p.id = dp.penjualan_id
-        JOIN barang b ON dp.barang_id = b.id
-        WHERE p.tanggal >= '$month-01' AND p.tanggal < '$next_month-01'");
-    if ($q) {
-        while ($row = mysqli_fetch_assoc($q)) {
-            $total_pendapatan_month += (float)$row['subtotal'];
-            $total_modal_month += hitungModalDetail($row);
-        }
-    }
-    $total_keuntungan_month = $total_pendapatan_month - $total_modal_month;
+    $total_keuntungan_month = $month_summary['total_keuntungan'];
 
     return compact(
         'total_today',
@@ -519,4 +403,50 @@ function getDashboardStats($conn)
         'aset_beli',
         'aset_jual'
     );
+}
+
+/**
+ * Dapatkan data grafik penjualan & keuntungan harian untuk 30 hari terakhir.
+ */
+function getDailyChartData($conn, $days = 30)
+{
+    $labels = [];
+    $sales_data = [];
+    $profit_data = [];
+
+    for ($i = $days - 1; $i >= 0; $i--) {
+        $date = date('Y-m-d', strtotime("-$i days"));
+        $labels[] = date('d/m', strtotime($date));
+
+        $tomorrow = date('Y-m-d', strtotime($date . ' +1 day'));
+        $summary = getSalesSummaryByDateRange($conn, $date, $tomorrow);
+        $sales_data[] = $summary['total_penjualan'];
+        $profit_data[] = $summary['total_keuntungan'];
+    }
+
+    return compact('labels', 'sales_data', 'profit_data');
+}
+
+/**
+ * Dapatkan data grafik penjualan & keuntungan bulanan untuk 12 bulan terakhir.
+ */
+function getMonthlyChartData($conn, $months = 12)
+{
+    $labels = [];
+    $sales_data = [];
+    $profit_data = [];
+    $month_names = [1 => 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
+
+    for ($i = $months - 1; $i >= 0; $i--) {
+        $month = date('Y-m', strtotime("-$i months"));
+        $month_arr = explode('-', $month);
+        $labels[] = $month_names[(int)$month_arr[1]];
+
+        $next_month = date('Y-m', strtotime($month . '-01 +1 month'));
+        $summary = getSalesSummaryByDateRange($conn, "$month-01", "$next_month-01");
+        $sales_data[] = $summary['total_penjualan'];
+        $profit_data[] = $summary['total_keuntungan'];
+    }
+
+    return compact('labels', 'sales_data', 'profit_data');
 }

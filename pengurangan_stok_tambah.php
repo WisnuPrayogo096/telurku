@@ -63,10 +63,10 @@ $barang_query = "SELECT id, nama_barang, unit_type, isi_renteng, stok FROM baran
 $barang_result = mysqli_query($conn, $barang_query);
 $barang_options = '';
 while ($brg = mysqli_fetch_assoc($barang_result)) {
-    $sisa_label = ($brg['unit_type'] === 'renteng' && (int)$brg['isi_renteng'] > 0) 
-        ? formatQty($brg['stok'] / max((int)$brg['isi_renteng'], 1)) . ' renteng' 
+    $sisa_label = ($brg['unit_type'] === 'renteng' && (int)$brg['isi_renteng'] > 0)
+        ? formatQty($brg['stok'] / max((int)$brg['isi_renteng'], 1)) . ' renteng'
         : formatQty($brg['stok']) . ' ' . unitLabel($brg['unit_type']);
-        
+
     $barang_options .= sprintf(
         '<option value="%s" data-unit="%s">%s (Sisa: %s)</option>',
         $brg['id'],
@@ -136,12 +136,12 @@ require_once 'includes/navbar.php';
         const idx = itemCounter++;
         const container = document.getElementById('kurangContainer');
         const block = document.createElement('div');
-        block.className = 'app-panel mb-4 border-red-500 border-opacity-50 border-2 overflow-hidden item-block';
-        
+        block.className = 'app-panel mb-4 item-block border-l-4 border-l-red-500';
+
         block.innerHTML = `
             <div class="app-panel-header bg-red-50">
                 <span class="app-panel-title text-red-800"><i class="ph ph-minus-circle text-red-500"></i> Pengeluaran #${idx + 1}</span>
-                <button type="button" class="btn-icon btn-icon-delete" onclick="this.closest('.item-block').remove()">
+                <button type="button" class="btn-icon btn-icon-delete" onclick="this.closest('.item-block').remove()" title="Hapus item">
                     <i class="ph ph-trash"></i>
                 </button>
             </div>
@@ -154,30 +154,34 @@ require_once 'includes/navbar.php';
                             ${barangOptions}
                         </select>
                     </div>
-                    <div>
-                        <label class="app-label">Jumlah Keluar <span id="unitLabel_${idx}" class="text-red-600 font-normal"></span></label>
-                        <input type="number" step="1" min="1" name="jumlah_kurang[${idx}]" class="app-input focus:border-red-500 focus:ring-red-200" required placeholder="Contoh: 2">
-                    </div>
-                    <div>
-                        <label class="app-label">Keterangan</label>
-                        <input type="text" name="keterangan[${idx}]" maxlength="255" value="Keperluan pribadi" placeholder="Contoh: Keperluan pribadi" class="app-input focus:border-red-500 focus:ring-red-200">
+                    <div class="form-row-full">
+                        <div class="form-row">
+                            <div>
+                                <label class="app-label">Jumlah Keluar <span id="unitLabel_${idx}" class="text-red-600 font-normal"></span></label>
+                                <input type="number" step="1" min="1" name="jumlah_kurang[${idx}]" class="app-input" required placeholder="Contoh: 2">
+                            </div>
+                            <div>
+                                <label class="app-label">Keterangan</label>
+                                <input type="text" name="keterangan[${idx}]" maxlength="255" value="Keperluan pribadi" placeholder="Contoh: Keperluan pribadi" class="app-input">
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         `;
-        
+
         container.appendChild(block);
-        
+
         const $select = $(`#select_${idx}`);
         $select.select2({
             placeholder: '-- Cari Barang --',
             allowClear: true
         });
-        
+
         $select.on('change', function() {
             updateUnitLabel(this, idx);
         });
-        
+
         // Auto open select2 on new item
         setTimeout(() => $select.select2('open'), 50);
     }

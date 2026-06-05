@@ -90,10 +90,10 @@ $barang_query = "SELECT id, nama_barang, unit_type, isi_renteng, stok, harga_bel
 $barang_result = mysqli_query($conn, $barang_query);
 $barang_options = '';
 while ($brg = mysqli_fetch_assoc($barang_result)) {
-    $sisa_label = ($brg['unit_type'] === 'renteng' && (int)$brg['isi_renteng'] > 0) 
-        ? formatQty($brg['stok'] / max((int)$brg['isi_renteng'], 1)) . ' renteng' 
+    $sisa_label = ($brg['unit_type'] === 'renteng' && (int)$brg['isi_renteng'] > 0)
+        ? formatQty($brg['stok'] / max((int)$brg['isi_renteng'], 1)) . ' renteng'
         : formatQty($brg['stok']) . ' ' . unitLabel($brg['unit_type']);
-        
+
     $barang_options .= sprintf(
         '<option value="%s" data-unit="%s" data-harga-beli="%s" data-harga-jual="%s">%s (Sisa: %s)</option>',
         $brg['id'],
@@ -148,7 +148,12 @@ require_once 'includes/navbar.php';
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
-    const rupiahFmt = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
+    const rupiahFmt = new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
     let itemCounter = 0;
     const barangOptions = `<?php echo $barang_options; ?>`;
 
@@ -156,7 +161,7 @@ require_once 'includes/navbar.php';
         const selected = $(selectElem).find('option:selected');
         const val = $(selectElem).val();
         const box = $(`#infoBox_${idx}`);
-        
+
         if (!val) {
             box.addClass('hidden');
             $(`#unitLabel_${idx}`).text('');
@@ -178,45 +183,45 @@ require_once 'includes/navbar.php';
         const idx = itemCounter++;
         const container = document.getElementById('stokContainer');
         const block = document.createElement('div');
-        block.className = 'app-panel mb-4 item-block';
-        
+        block.className = 'app-panel mb-4 item-block border-l-4 border-l-brand';
+
         block.innerHTML = `
             <div class="app-panel-header bg-brand-light">
-                <span class="app-panel-title">Stok Item #${idx + 1}</span>
-                <button type="button" class="btn-icon btn-icon-delete" onclick="this.closest('.item-block').remove()">
+                <span class="app-panel-title"><i class="ph ph-archive-box text-brand"></i> Stok Item #${idx + 1}</span>
+                <button type="button" class="btn-icon btn-icon-delete" onclick="this.closest('.item-block').remove()" title="Hapus item">
                     <i class="ph ph-trash"></i>
                 </button>
             </div>
             <div class="app-panel-body p-4 space-y-4">
-                <div class="form-row">
-                    <div class="form-row-full">
-                        <label class="app-label">Pilih Barang</label>
-                        <select name="barang_id[${idx}]" class="w-full stok-barang" id="select_${idx}" required>
-                            <option value="">-- Cari Barang --</option>
-                            ${barangOptions}
-                        </select>
-                    </div>
-                    <div class="form-row-full hidden" id="infoBox_${idx}">
-                        <div class="p-3 bg-brand-lighter border border-blue-200 rounded-lg">
-                            <p class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide"><i class="ph ph-tag text-brand"></i> Harga saat ini</p>
-                            <div class="grid grid-cols-2 gap-3 text-sm">
-                                <div class="bg-white rounded border border-slate-200 px-3 py-2">
-                                    <span class="text-slate-500 block text-xs">Harga Beli</span>
-                                    <span id="hargaBeliSaatIni_${idx}" class="font-bold text-slate-800">—</span>
-                                </div>
-                                <div class="bg-white rounded border border-slate-200 px-3 py-2">
-                                    <span class="text-slate-500 block text-xs">Harga Jual</span>
-                                    <span id="hargaJualSaatIni_${idx}" class="font-bold text-brand-dark">—</span>
-                                </div>
+                <div class="form-row-full">
+                    <label class="app-label">Pilih Barang</label>
+                    <select name="barang_id[${idx}]" class="w-full stok-barang" id="select_${idx}" required>
+                        <option value="">-- Cari Barang --</option>
+                        ${barangOptions}
+                    </select>
+                </div>
+                <div class="form-row-full hidden" id="infoBox_${idx}">
+                    <div class="p-3 bg-brand-lighter border border-blue-200 rounded-lg">
+                        <p class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide"><i class="ph ph-tag text-brand"></i> Harga saat ini</p>
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div class="bg-white rounded border border-slate-200 px-3 py-2">
+                                <span class="text-slate-500 block text-xs">Harga Beli</span>
+                                <span id="hargaBeliSaatIni_${idx}" class="font-bold text-slate-800">—</span>
                             </div>
-                            <p class="text-[0.7rem] text-slate-500 mt-2">Opsional: Isi form bawah jika ingin update harga.</p>
+                            <div class="bg-white rounded border border-slate-200 px-3 py-2">
+                                <span class="text-slate-500 block text-xs">Harga Jual</span>
+                                <span id="hargaJualSaatIni_${idx}" class="font-bold text-brand-dark">—</span>
+                            </div>
                         </div>
+                        <p class="text-[0.7rem] text-slate-500 mt-2">Opsional: Isi form bawah jika ingin update harga.</p>
                     </div>
-                    <div>
-                        <label class="app-label">Jumlah Tambah <span id="unitLabel_${idx}" class="text-brand font-normal"></span></label>
-                        <input type="number" step="1" min="1" name="jumlah_tambah[${idx}]" class="app-input border-brand" required placeholder="Contoh: 10">
-                    </div>
-                    <div class="form-row-full form-row mt-2">
+                </div>
+                <div class="form-row-full">
+                    <div class="form-row">
+                        <div>
+                            <label class="app-label">Jumlah Tambah <span id="unitLabel_${idx}" class="text-brand font-normal"></span></label>
+                            <input type="number" step="1" min="1" name="jumlah_tambah[${idx}]" class="app-input" required placeholder="Contoh: 10">
+                        </div>
                         <div>
                             <label class="app-label">Harga Beli Baru <span class="text-xs text-gray-400 font-normal">(Opsional)</span></label>
                             <input type="number" step="0.01" name="harga_beli_baru[${idx}]" class="app-input" placeholder="Opsional">
@@ -229,19 +234,19 @@ require_once 'includes/navbar.php';
                 </div>
             </div>
         `;
-        
+
         container.appendChild(block);
-        
+
         const $select = $(`#select_${idx}`);
         $select.select2({
             placeholder: '-- Cari Barang --',
             allowClear: true
         });
-        
+
         $select.on('change', function() {
             updateHargaSaatIni(this, idx);
         });
-        
+
         // Auto open select2 on new item
         setTimeout(() => $select.select2('open'), 50);
     }

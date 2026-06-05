@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['id'])) {
     $nama_barang = trim($_POST['nama_barang'] ?? '');
     $unit_type = $_POST['unit_type'] ?? 'pcs';
     $harga_beli = (float)($_POST['harga_beli'] ?? 0);
-    
+
     $harga_jual = 0;
     $harga_jual_renteng = 0;
     $harga_jual_pcs = 0;
@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['id'])) {
         if ($nama_barang === '') {
             throw new Exception('Nama barang wajib diisi!');
         }
-        
+
         if ($unit_type === 'gram') {
             $harga_jual = (float)($_POST['harga_jual'] ?? 0);
             $stok = (float)($_POST['stok_gram'] ?? 0);
@@ -49,11 +49,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['id'])) {
         $query = "UPDATE barang SET nama_barang=?, unit_type=?, isi_renteng=?, harga_beli=?, harga_jual=?, harga_jual_renteng=?, harga_jual_pcs=?, stok=? WHERE id=?";
         $stmt = mysqli_prepare($conn, $query);
         mysqli_stmt_bind_param($stmt, "ssidddddi", $nama_barang, $unit_type, $isi_renteng, $harga_beli, $harga_jual, $harga_jual_renteng, $harga_jual_pcs, $stok, $id);
-        
+
         if (!mysqli_stmt_execute($stmt)) {
             throw new Exception('Gagal menyimpan perubahan!');
         }
-        
+
         mysqli_commit($conn);
         $success = 'Data barang berhasil diperbarui!';
     } catch (Exception $e) {
@@ -70,7 +70,7 @@ if (isset($_GET['delete'])) {
     mysqli_stmt_bind_param($check_stmt, "i", $id);
     mysqli_stmt_execute($check_stmt);
     $result = mysqli_stmt_get_result($check_stmt);
-    
+
     if (!mysqli_fetch_assoc($result)) {
         $error = 'Data barang tidak ditemukan!';
     } else {
@@ -193,7 +193,7 @@ require_once 'includes/flash.php';
                             </select>
                         </div>
                     </div>
-                    
+
                     <div id="unitFields" class="form-item-card">
                         <!-- Fields diisi via JS -->
                     </div>
@@ -284,7 +284,7 @@ require_once 'includes/flash.php';
                         <button type="button" class="btn-generate" onclick="generateGram()"><i class="ph ph-magic-wand"></i> Generate Harga Jual</button>
                     </div>
                     <div class="form-row-full">
-                        <label class="app-label">Harga Jual per Gram</label>
+                        <label class="app-label">Harga Jual per 1 KG</label>
                         <input type="number" step="0.0001" name="harga_jual" id="hj_gram" class="app-input generated-field" value="${data.harga_jual || ''}" required>
                         <p class="text-xs text-gray-500 mt-1">Bisa pakai koma desimal.</p>
                     </div>
@@ -332,13 +332,13 @@ require_once 'includes/flash.php';
     function editBarang(data) {
         document.getElementById('editId').value = data.id;
         document.getElementById('editNama').value = data.nama_barang;
-        
+
         let unit = data.unit_type;
         if (unit === 'kg') unit = 'gram';
         unitSelect.value = unit;
-        
+
         renderFields(unit, data);
-        
+
         modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
     }

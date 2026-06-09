@@ -84,7 +84,7 @@ require_once 'includes/flash.php';
             <span class="text-sm font-bold text-slate-700">Total Beli: <span class="text-brand" id="totalHargaBeliDisplay">Rp 0</span></span>
         </div>
         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse" id="stokMasukTable">
+            <table class="w-full text-left border-collapse mobile-card-table" id="stokMasukTable">
                 <thead>
                     <tr class="bg-gray-100 text-gray-700 text-sm border-b">
                         <th class="px-4 py-3 font-semibold">Tanggal</th>
@@ -100,18 +100,18 @@ require_once 'includes/flash.php';
                         <?php while ($row = mysqli_fetch_assoc($riwayat_result)): ?>
                             <?php $total_harga_beli += ((float)$row['harga_beli'] * (float)$row['jumlah_tambah']); ?>
                             <tr class="border-b hover:bg-blue-50/50">
-                                <td class="px-4 py-3"><?php echo formatTanggal($row['tanggal']); ?></td>
-                                <td class="px-4 py-3">
+                                <td class="px-4 py-3" data-label="Tanggal"><?php echo formatTanggal($row['tanggal']); ?></td>
+                                <td class="px-4 py-3" data-label="Barang">
                                     <span class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></span>
                                 </td>
-                                <td class="px-4 py-3 text-center">
+                                <td class="px-4 py-3 text-center" data-label="Jml Masuk">
                                     <span class="badge badge-green font-bold">
                                         +<?php echo ($row['unit_type'] === 'renteng' && (int)$row['isi_renteng'] > 0) ? formatQty($row['jumlah_tambah'] / max((int)$row['isi_renteng'], 1)) . ' renteng' : formatQty($row['jumlah_tambah']) . ' ' . unitLabel($row['unit_type']); ?>
                                     </span>
                                 </td>
-                                <td class="px-4 py-3 text-right"><?php echo formatRupiah($row['harga_beli']); ?></td>
-                                <td class="px-4 py-3 text-right"><?php echo formatRupiah($row['harga_jual']); ?></td>
-                                <td class="px-4 py-3 text-center">
+                                <td class="px-4 py-3 text-right" data-label="Harga Beli"><?php echo formatRupiah($row['harga_beli']); ?></td>
+                                <td class="px-4 py-3 text-right" data-label="Harga Jual"><?php echo formatRupiah($row['harga_jual']); ?></td>
+                                <td class="px-4 py-3 text-center" data-label="Aksi">
                                     <button type="button" data-delete-id="<?php echo $row['id']; ?>" class="btn-icon btn-icon-delete delete-btn" title="Batal/Hapus">
                                         <i class="ph ph-trash"></i>
                                     </button>

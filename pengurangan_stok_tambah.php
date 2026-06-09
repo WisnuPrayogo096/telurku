@@ -182,8 +182,7 @@ require_once 'includes/navbar.php';
             updateUnitLabel(this, idx);
         });
 
-        // Auto open select2 on new item
-        setTimeout(() => $select.select2('open'), 50);
+        // Don't auto-open — let user click manually
     }
 
     // Add first item on load

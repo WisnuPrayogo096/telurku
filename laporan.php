@@ -56,7 +56,7 @@ require_once 'includes/navbar.php';
 
     <div class="app-panel overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="w-full" id="laporanTable">
+            <table class="w-full mobile-card-table" id="laporanTable">
                 <thead class="bg-gray-200">
                     <tr>
                         <th class="px-4 py-3 text-left">Waktu Transaksi</th>
@@ -85,19 +85,19 @@ require_once 'includes/navbar.php';
                         $grand_total_keuntungan += $keuntungan;
                     ?>
                         <tr class="border-b hover:bg-amber-50/40">
-                            <td class="px-4 py-3 text-sm text-gray-600"><?php echo date('d/m/Y H:i', strtotime($row['tanggal'])); ?></td>
-                            <td class="px-4 py-3">
+                            <td class="px-4 py-3 text-sm text-gray-600" data-label="Waktu"><?php echo date('d/m/Y H:i', strtotime($row['tanggal'])); ?></td>
+                            <td class="px-4 py-3" data-label="Barang">
                                 <div class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></div>
                             </td>
-                            <td class="px-4 py-3 text-center">
+                            <td class="px-4 py-3 text-center" data-label="Unit">
                                 <span class="badge badge-blue"><?php echo htmlspecialchars($row['unit']); ?></span>
                             </td>
-                            <td class="px-4 py-3 text-center font-medium"><?php echo formatQty($row['jumlah']); ?></td>
-                            <td class="px-4 py-3 text-right text-gray-600"><?php echo formatRupiah($row['harga_beli']); ?></td>
-                            <td class="px-4 py-3 text-right text-gray-600"><?php echo formatRupiah($subtotal_beli); ?></td>
-                            <td class="px-4 py-3 text-right text-gray-600"><?php echo formatRupiah($row['harga_satuan']); ?></td>
-                            <td class="px-4 py-3 text-right font-bold text-amber-700"><?php echo formatRupiah($row['subtotal']); ?></td>
-                            <td class="px-4 py-3 text-right font-bold <?php echo $keuntungan >= 0 ? 'text-green-600' : 'text-red-600'; ?>"><?php echo formatRupiah($keuntungan); ?></td>
+                            <td class="px-4 py-3 text-center font-medium" data-label="Qty"><?php echo formatQty($row['jumlah']); ?></td>
+                            <td class="px-4 py-3 text-right text-gray-600" data-label="H. Beli"><?php echo formatRupiah($row['harga_beli']); ?></td>
+                            <td class="px-4 py-3 text-right text-gray-600" data-label="Sub. H. Beli"><?php echo formatRupiah($subtotal_beli); ?></td>
+                            <td class="px-4 py-3 text-right text-gray-600" data-label="H. Jual"><?php echo formatRupiah($row['harga_satuan']); ?></td>
+                            <td class="px-4 py-3 text-right font-bold text-amber-700" data-label="Sub. H. Jual"><?php echo formatRupiah($row['subtotal']); ?></td>
+                            <td class="px-4 py-3 text-right font-bold <?php echo $keuntungan >= 0 ? 'text-green-600' : 'text-red-600'; ?>" data-label="Keuntungan"><?php echo formatRupiah($keuntungan); ?></td>
                         </tr>
                     <?php endwhile; ?>
 
@@ -112,15 +112,15 @@ require_once 'includes/navbar.php';
                 <?php if (mysqli_num_rows($result) > 0): ?>
                     <tfoot class="bg-gray-100">
                         <tr class="font-bold">
-                            <td colspan="5" class="px-4 py-3 text-right">TOTAL MODAL (H. BELI)</td>
-                            <td class="px-4 py-3 text-right text-amber-700 text-lg"><?php echo formatRupiah($grand_total_beli); ?></td>
-                            <td colspan="1" class="px-4 py-3 text-right">TOTAL PENJUALAN</td>
-                            <td class="px-4 py-3 text-right text-amber-700 text-lg"><?php echo formatRupiah($grand_total_penjualan); ?></td>
-                            <td class="px-4 py-3 text-right text-lg"></td>
+                            <td colspan="5" class="px-4 py-3 text-right" data-label="">TOTAL MODAL (H. BELI)</td>
+                            <td class="px-4 py-3 text-right text-amber-700 text-lg" data-label="Total Modal"><?php echo formatRupiah($grand_total_beli); ?></td>
+                            <td colspan="1" class="px-4 py-3 text-right" data-label="">TOTAL PENJUALAN</td>
+                            <td class="px-4 py-3 text-right text-amber-700 text-lg" data-label="Total Penjualan"><?php echo formatRupiah($grand_total_penjualan); ?></td>
+                            <td class="px-4 py-3 text-right text-lg" data-label=""></td>
                         </tr>
                         <tr class="font-bold border-t-2">
-                            <td colspan="7" class="px-4 py-3 text-right">TOTAL KEUNTUNGAN / KERUGIAN</td>
-                            <td colspan="2" class="px-4 py-3 text-right text-lg">
+                            <td colspan="7" class="px-4 py-3 text-right" data-label="">TOTAL KEUNTUNGAN / KERUGIAN</td>
+                            <td colspan="2" class="px-4 py-3 text-right text-lg" data-label="Keuntungan">
                                 <span class="<?php echo $grand_total_keuntungan >= 0 ? 'text-green-600' : 'text-red-600'; ?>">
                                     <?php echo formatRupiah($grand_total_keuntungan); ?>
                                     <span class="text-sm">(<?php echo $grand_total_keuntungan >= 0 ? '✓ SURPLUS' : '✗ DEFISIT'; ?>)</span>

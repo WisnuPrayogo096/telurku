@@ -19,6 +19,11 @@ define('DB_USER', 'simsatsetroot');
 define('DB_PASS', '17082013');
 define('DB_NAME', 'db_wisnu');
 
+// define('DB_HOST', 'localhost');
+// define('DB_USER', 'root');
+// define('DB_PASS', '');
+// define('DB_NAME', 'db_telurku');
+
 // Create Connection
 $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 

@@ -1825,6 +1825,17 @@ table.dataTable thead th {
   }
 }
 
+/* ── Hide number input spinners globally ────────────────────────────── */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 @media (max-width: 480px) {
   /* Mobile-first form improvements */
   .form-row {
@@ -1833,33 +1844,117 @@ table.dataTable thead th {
   .form-item-card-body {
     padding: 0.65rem;
   }
+}
 
-  /* Better table display */
-  thead {
+/* ── Mobile Card Tables ─────────────────────────────────────────────── */
+@media (max-width: 767.98px) {
+  /* Convert tables to card layout on mobile */
+  .mobile-card-table thead {
     display: none;
   }
-  tbody,
-  tr,
-  td {
+  .mobile-card-table tfoot {
     display: block;
     width: 100%;
   }
-  tr {
-    margin-bottom: 1rem;
+  .mobile-card-table tfoot tr {
+    display: block;
+    padding: 0.65rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--soft);
+  }
+  .mobile-card-table tfoot td {
+    display: block;
+    width: 100%;
+    padding: 0.25rem 0 !important;
+    text-align: right !important;
+  }
+  .mobile-card-table tbody {
+    display: block;
+  }
+  .mobile-card-table tbody tr {
+    display: block;
+    margin-bottom: 0.65rem;
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 0.5rem;
+    padding: 0.65rem;
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
   }
-  td {
-    padding: 0.5rem 0 !important;
+  .mobile-card-table tbody tr:hover {
+    background: var(--brand-lighter);
   }
-  td::before {
+  .mobile-card-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.35rem 0 !important;
+    border-bottom: 1px solid #f1f5f9;
+    width: 100%;
+    text-align: right !important;
+  }
+  .mobile-card-table tbody td:last-child {
+    border-bottom: none;
+    padding-top: 0.5rem !important;
+    justify-content: flex-end;
+  }
+  .mobile-card-table tbody td::before {
     content: attr(data-label);
     font-weight: 700;
-    display: block;
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     color: var(--muted);
-    margin-bottom: 0.2rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    text-align: left;
+    margin-right: 0.5rem;
+    flex-shrink: 0;
+  }
+  /* DataTables overrides for mobile card */
+  .mobile-card-table.dataTable tbody tr {
+    display: block !important;
+    margin-bottom: 0.65rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 0.65rem;
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+  .mobile-card-table.dataTable tbody td {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.35rem 0 !important;
+    border-bottom: 1px solid #f1f5f9;
+    width: 100% !important;
+    text-align: right !important;
+  }
+  .mobile-card-table.dataTable tbody td:last-child {
+    border-bottom: none;
+  }
+
+  /* DataTables pagination/filter fixes */
+  .dataTables_wrapper .dataTables_filter {
+    text-align: left !important;
+    margin-bottom: 0.75rem;
+  }
+  .dataTables_wrapper .dataTables_filter input {
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-top: 0.25rem;
+  }
+  .dataTables_wrapper .dataTables_filter label {
+    display: block;
+    width: 100%;
+  }
+  .dataTables_wrapper .dataTables_paginate {
+    margin-top: 0.75rem !important;
+    text-align: center !important;
+  }
+  .dataTables_wrapper .dataTables_info {
+    text-align: center !important;
+    font-size: 0.72rem;
+    padding-top: 0.5rem;
   }
 }
 

@@ -86,7 +86,7 @@ require_once 'includes/flash.php';
             <span class="app-panel-title"><i class="ph ph-clock-counter-clockwise text-red-600"></i> Riwayat Pengurangan Stok</span>
         </div>
         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse" id="penguranganStokTable">
+            <table class="w-full text-left border-collapse mobile-card-table" id="penguranganStokTable">
                 <thead>
                     <tr class="bg-gray-100 text-gray-700 text-sm border-b">
                         <th class="px-4 py-3 font-semibold">Tanggal</th>
@@ -100,17 +100,17 @@ require_once 'includes/flash.php';
                     <?php if (mysqli_num_rows($riwayat_result) > 0): ?>
                         <?php while ($row = mysqli_fetch_assoc($riwayat_result)): ?>
                             <tr class="border-b hover:bg-red-50/50">
-                                <td class="px-4 py-3"><?php echo formatTanggal($row['tanggal']); ?></td>
-                                <td class="px-4 py-3">
+                                <td class="px-4 py-3" data-label="Tanggal"><?php echo formatTanggal($row['tanggal']); ?></td>
+                                <td class="px-4 py-3" data-label="Barang">
                                     <span class="font-medium text-gray-800"><?php echo htmlspecialchars($row['nama_barang']); ?></span>
                                 </td>
-                                <td class="px-4 py-3 text-center">
+                                <td class="px-4 py-3 text-center" data-label="Jml Keluar">
                                     <span class="badge badge-red font-bold">
                                         −<?php echo ($row['unit_type'] === 'renteng' && (int)$row['isi_renteng'] > 0) ? formatQty($row['jumlah_kurang'] / max((int)$row['isi_renteng'], 1)) . ' renteng' : formatQty($row['jumlah_kurang']) . ' ' . unitLabel($row['unit_type']); ?>
                                     </span>
                                 </td>
-                                <td class="px-4 py-3 text-slate-600"><?php echo htmlspecialchars($row['keterangan']); ?></td>
-                                <td class="px-4 py-3 text-center">
+                                <td class="px-4 py-3 text-slate-600" data-label="Keterangan"><?php echo htmlspecialchars($row['keterangan']); ?></td>
+                                <td class="px-4 py-3 text-center" data-label="Aksi">
                                     <button type="button" data-delete-id="<?php echo $row['id']; ?>" class="btn-icon btn-icon-delete delete-btn" title="Batal/Hapus">
                                         <i class="ph ph-trash"></i>
                                     </button>

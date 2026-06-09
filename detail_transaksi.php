@@ -60,7 +60,7 @@ require_once 'includes/navbar.php';
 
             <div class="border-t pt-4 overflow-x-auto">
                 <h3 class="font-bold text-lg mb-4">Item Terjual</h3>
-                <table class="w-full" id="detailItemTable">
+                <table class="w-full mobile-card-table" id="detailItemTable">
                     <thead class="bg-gray-100 text-sm">
                         <tr>
                             <th class="px-3 py-2 text-left">Barang</th>
@@ -72,10 +72,10 @@ require_once 'includes/navbar.php';
                     <tbody>
                         <?php while ($item = mysqli_fetch_assoc($detail_result)): ?>
                             <tr class="border-b text-sm">
-                                <td class="px-3 py-2 font-medium"><?php echo htmlspecialchars($item['nama_barang']); ?></td>
-                                <td class="px-3 py-2 text-center"><?php echo formatQty($item['jumlah']); ?> <?php echo htmlspecialchars($item['unit'] ?? 'pcs'); ?></td>
-                                <td class="px-3 py-2 text-right"><?php echo formatRupiah($item['harga_satuan']); ?></td>
-                                <td class="px-3 py-2 text-right font-medium"><?php echo formatRupiah($item['subtotal']); ?></td>
+                                <td class="px-3 py-2 font-medium" data-label="Barang"><?php echo htmlspecialchars($item['nama_barang']); ?></td>
+                                <td class="px-3 py-2 text-center" data-label="Qty"><?php echo formatQty($item['jumlah']); ?> <?php echo htmlspecialchars($item['unit'] ?? 'pcs'); ?></td>
+                                <td class="px-3 py-2 text-right" data-label="Harga"><?php echo formatRupiah($item['harga_satuan']); ?></td>
+                                <td class="px-3 py-2 text-right font-medium" data-label="Subtotal"><?php echo formatRupiah($item['subtotal']); ?></td>
                             </tr>
                         <?php endwhile; ?>
                     </tbody>

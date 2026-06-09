@@ -102,7 +102,7 @@ require_once 'includes/flash.php';
             </a>
         </div>
         <div class="overflow-x-auto">
-            <table class="w-full" id="barangTable">
+            <table class="w-full mobile-card-table" id="barangTable">
                 <thead class="bg-gray-200">
                     <tr>
                         <th class="px-4 py-3 text-left">No</th>
@@ -122,24 +122,24 @@ require_once 'includes/flash.php';
                     while ($row = mysqli_fetch_assoc($result)):
                     ?>
                         <tr class="border-b hover:bg-blue-50 barang-row">
-                            <td class="px-4 py-3"><?php echo $no++; ?></td>
-                            <td class="px-4 py-3 font-medium text-gray-800 row-nama"><?php echo htmlspecialchars($row['nama_barang']); ?></td>
-                            <td class="px-4 py-3 text-center">
+                            <td class="px-4 py-3" data-label="No"><?php echo $no++; ?></td>
+                            <td class="px-4 py-3 font-medium text-gray-800 row-nama" data-label="Nama Barang"><?php echo htmlspecialchars($row['nama_barang']); ?></td>
+                            <td class="px-4 py-3 text-center" data-label="Satuan">
                                 <span class="badge badge-blue">
                                     <?php echo unitTypeLabel($row['unit_type'] ?? 'pcs'); ?>
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-right">
+                            <td class="px-4 py-3 text-right" data-label="Harga Beli">
                                 <?php echo ($row['harga_beli'] ?? 0) > 0 ? formatRupiah($row['harga_beli']) : '-'; ?>
                             </td>
-                            <td class="px-4 py-3 text-right"><?php echo formatRupiah($row['harga_jual']); ?></td>
-                            <td class="px-4 py-3 text-right">
+                            <td class="px-4 py-3 text-right" data-label="Harga Jual"><?php echo formatRupiah($row['harga_jual']); ?></td>
+                            <td class="px-4 py-3 text-right" data-label="Harga Renteng">
                                 <?php echo ($row['harga_jual_renteng'] ?? 0) > 0 ? formatRupiah($row['harga_jual_renteng']) : '-'; ?>
                             </td>
-                            <td class="px-4 py-3 text-right">
+                            <td class="px-4 py-3 text-right" data-label="Harga Pcs">
                                 <?php echo ($row['harga_jual_pcs'] ?? 0) > 0 ? formatRupiah($row['harga_jual_pcs']) : '-'; ?>
                             </td>
-                            <td class="px-4 py-3 text-center">
+                            <td class="px-4 py-3 text-center" data-label="Stok">
                                 <span class="badge <?php echo $row['stok'] < 10 ? 'badge-red' : 'badge-green'; ?>">
                                     <?php echo (($row['unit_type'] ?? 'pcs') === 'renteng' && (int)$row['isi_renteng'] > 0) ? formatQty($row['stok'] / max((int)$row['isi_renteng'], 1)) . ' renteng' : formatQty($row['stok']) . ' ' . unitLabel($row['unit_type'] ?? 'pcs'); ?>
                                 </span>
@@ -149,7 +149,7 @@ require_once 'includes/flash.php';
                                     </div>
                                 <?php endif; ?>
                             </td>
-                            <td class="px-4 py-3 text-center whitespace-nowrap">
+                            <td class="px-4 py-3 text-center whitespace-nowrap" data-label="Aksi">
                                 <button type="button" class="btn-icon btn-icon-edit mr-1" title="Edit"
                                     onclick='editBarang(<?php echo json_encode($row, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)'>
                                     <i class="ph ph-pencil-simple"></i>

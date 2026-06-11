@@ -13,29 +13,7 @@ session_start();
 // Set timezone to GMT+7 (Jakarta, Indonesia)
 date_default_timezone_set('Asia/Jakarta');
 
-// Database Configuration
-define('DB_HOST', '10.18.3.69');
-define('DB_USER', 'simsatsetroot');
-define('DB_PASS', '17082013');
-define('DB_NAME', 'db_wisnu');
-
-// define('DB_HOST', 'localhost');
-// define('DB_USER', 'root');
-// define('DB_PASS', '');
-// define('DB_NAME', 'db_telurku');
-
-// Create Connection
-$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-
-// Check Connection
-if (!$conn) {
-    die("Koneksi gagal: " . mysqli_connect_error());
-}
-
-// Set charset
-mysqli_set_charset($conn, "utf8");
-
-// Schema sudah fixed via migration, tidak perlu auto-ensure lagi
+require_once 'db.php';
 
 // Function untuk cek login
 function isLoggedIn()
@@ -394,7 +372,7 @@ function hapusPenjualan(mysqli $conn, int $penjualan_id): array
     }
 
     if (empty($details)) {
-        return ['ok' => false, 'message' => 'Transaksi #' . $penjualan_id . ' tidak ditemukan!'];
+        return ['ok' => false, 'message' => 'Transaksi TRX-' . $penjualan_id . ' tidak ditemukan!'];
     }
 
     $item_count = count($details);
@@ -423,7 +401,7 @@ function hapusPenjualan(mysqli $conn, int $penjualan_id): array
 
         return [
             'ok' => true,
-            'message' => 'Transaksi #' . $penjualan_id . ' (' . $item_count . ' item) berhasil dibatalkan. Stok barang telah dikembalikan.',
+            'message' => 'Transaksi TRX-' . $penjualan_id . ' (' . $item_count . ' item) berhasil dibatalkan. Stok barang telah dikembalikan.',
         ];
     } catch (Exception $e) {
         mysqli_rollback($conn);

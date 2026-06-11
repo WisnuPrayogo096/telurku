@@ -40,7 +40,7 @@ require_once 'includes/navbar.php';
 <div class="app-container max-w-4xl">
     <div class="app-panel mb-6">
         <div class="app-panel-header">
-            <span class="app-panel-title"><i class="ph ph-receipt text-amber-600"></i> Detail Transaksi #<?php echo $id; ?></span>
+            <span class="app-panel-title"><i class="ph ph-receipt text-amber-600"></i> Detail Transaksi TRX-<?php echo $id; ?></span>
         </div>
         <div class="app-panel-body">
             <div class="grid grid-cols-2 gap-4 mb-6">
@@ -98,13 +98,25 @@ require_once 'includes/navbar.php';
     </div>
 </div>
 
-    <style>@media print{nav,button{display:none}body{background:#fff}}</style>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
-    <script src="assets/js/datatables-default.js"></script>
-    <script>
+<style>
+    @media print {
+
+        nav,
+        button {
+            display: none
+        }
+
+        body {
+            background: #fff
+        }
+    }
+</style>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="assets/js/datatables-default.js"></script>
+<script>
     $(function() {
         initDefaultDataTable('#detailItemTable');
     });
-    </script>
+</script>
 <?php require_once 'includes/footer.php'; ?>

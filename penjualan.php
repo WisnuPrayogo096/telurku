@@ -12,7 +12,7 @@ if (isset($_SESSION['flash_success'])) {
 }
 
 // Proses Penjualan
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['penjualan_token'])) {
     $submitted_token = $_POST['penjualan_token'] ?? '';
     $session_token = $_SESSION['penjualan_token'] ?? '';
 

@@ -6,8 +6,21 @@ $success = '';
 $error = '';
 $tanggal_penjualan = getCurrentDate();
 
+if (isset($_SESSION['flash_success'])) {
+    $success = $_SESSION['flash_success'];
+    unset($_SESSION['flash_success']);
+}
+
 // Proses Penjualan
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
+    $submitted_token = $_POST['penjualan_token'] ?? '';
+    $session_token = $_SESSION['penjualan_token'] ?? '';
+
+    if ($submitted_token === '' || $session_token === '' || !hash_equals($session_token, $submitted_token)) {
+        $error = 'Permintaan sudah diproses atau tidak valid. Silakan coba lagi.';
+    } else {
+        unset($_SESSION['penjualan_token']);
+
     $tanggal_penjualan = $_POST['tanggal_penjualan'] ?? getCurrentDate();
     $date = DateTime::createFromFormat('Y-m-d', $tanggal_penjualan);
     if (!$date || $date->format('Y-m-d') !== $tanggal_penjualan) {
@@ -121,13 +134,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['proses_jual'])) {
             }
 
             mysqli_commit($conn);
-            $success = "Penjualan berhasil disimpan! Total: " . formatRupiah($total_bayar);
+            $_SESSION['flash_success'] = "Penjualan berhasil disimpan! Total: " . formatRupiah($total_bayar);
+            header('Location: penjualan');
+            exit();
         } catch (Exception $e) {
             mysqli_rollback($conn);
             $error = "Gagal menyimpan transaksi!";
         }
     }
+    }
 }
+
+$_SESSION['penjualan_token'] = bin2hex(random_bytes(16));
+$penjualan_token = $_SESSION['penjualan_token'];
 
 // Ambil data barang
 $barang_query = "SELECT b.* FROM barang b 
@@ -156,6 +175,7 @@ require_once 'includes/flash.php';
         </div>
         <div class="app-panel-body">
             <form method="POST" action="" id="formPenjualan" class="space-y-4">
+                <input type="hidden" name="penjualan_token" value="<?php echo htmlspecialchars($penjualan_token); ?>">
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
                     <div class="lg:col-span-2 space-y-4">
                         <input type="hidden" name="metode_bayar" id="metodeBayar" value="tunai">
@@ -221,7 +241,7 @@ require_once 'includes/flash.php';
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-sm text-slate-300">Total Belanja</span>
-                                <span class="total-display" id="totalBelanjaDisplay">Rp 0</span>
+                                <span class="total-display text-emerald-400" id="totalBelanjaDisplay">Rp 0</span>
                             </div>
                             <input type="hidden" id="totalBelanjaInput" name="total_belanja_view" value="0">
                             <div id="tunaiSection" class="space-y-3 pt-2 border-t border-slate-600">
@@ -232,11 +252,11 @@ require_once 'includes/flash.php';
                                 </div>
                                 <div class="flex justify-between items-center">
                                     <span class="text-sm text-slate-300">Kembalian</span>
-                                    <span class="text-lg font-bold text-emerald-400" id="kembalianDisplay">Rp 0</span>
+                                    <span class="text-xl font-bold" id="kembalianDisplay">Rp 0</span>
                                 </div>
                             </div>
                         </div>
-                        <button type="submit" name="proses_jual" class="btn btn-primary w-full py-3.5 text-base !shadow-lg">
+                        <button type="submit" name="proses_jual" id="btnProsesJual" class="btn btn-primary w-full py-3.5 text-base !shadow-lg">
                             <i class="ph ph-check-circle"></i> Proses Penjualan
                         </button>
                     </div>
@@ -567,6 +587,32 @@ require_once 'includes/flash.php';
 
     document.getElementById('metodeBayar')?.addEventListener('change', updateKembalian);
     document.getElementById('tunaiDiterima')?.addEventListener('input', updateKembalian);
+
+    const formPenjualan = document.getElementById('formPenjualan');
+    let isSubmitting = false;
+
+    formPenjualan?.addEventListener('submit', function(e) {
+        const hasItems = document.querySelectorAll('#itemContainer .item-row').length > 0;
+        if (!hasItems) {
+            e.preventDefault();
+            alert('Belum ada item. Tambahkan barang terlebih dahulu.');
+            return;
+        }
+
+        if (isSubmitting) {
+            e.preventDefault();
+            return;
+        }
+
+        isSubmitting = true;
+        const btn = document.getElementById('btnProsesJual');
+        if (btn) {
+            btn.disabled = true;
+            btn.setAttribute('aria-busy', 'true');
+            btn.innerHTML = '<i class="ph ph-spinner"></i> Memproses...';
+            btn.classList.add('opacity-75', 'cursor-not-allowed', 'pointer-events-none');
+        }
+    });
 
     // init total awal (keranjang kosong)
     updateTotals();

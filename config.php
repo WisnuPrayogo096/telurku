@@ -283,6 +283,249 @@ function hitungKeuntunganDetail($row)
     return (float)($row['subtotal'] ?? 0) - hitungModalDetail($row);
 }
 
+/**
+ * Konversi qty detail penjualan ke satuan stok (pcs/gram) — kebalikan dari penjualan.php.
+ */
+function hitungJumlahPcsDetailPenjualan(array $detail, array $barang): float
+{
+    $jumlah = (float)($detail['jumlah'] ?? 0);
+    $unit = $detail['unit'] ?? 'pcs';
+
+    if ($unit === 'renteng') {
+        return $jumlah * max((int)($barang['isi_renteng'] ?? 1), 1);
+    }
+
+    return $jumlah;
+}
+
+/**
+ * Batalkan satu baris detail penjualan dan kembalikan stok barang.
+ *
+ * @return array{ok: bool, message: string}
+ */
+function hapusDetailPenjualan(mysqli $conn, int $detail_id): array
+{
+    $query = "SELECT dp.*, b.isi_renteng, b.unit_type, b.nama_barang
+              FROM detail_penjualan dp
+              JOIN barang b ON dp.barang_id = b.id
+              WHERE dp.id = ?";
+    $stmt = mysqli_prepare($conn, $query);
+    if (!$stmt) {
+        return ['ok' => false, 'message' => 'Gagal memuat data penjualan!'];
+    }
+
+    mysqli_stmt_bind_param($stmt, "i", $detail_id);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    $detail = mysqli_fetch_assoc($result);
+
+    if (!$detail) {
+        return ['ok' => false, 'message' => 'Data penjualan tidak ditemukan!'];
+    }
+
+    $penjualan_id = (int)$detail['penjualan_id'];
+    $barang_id = (int)$detail['barang_id'];
+    $jumlah_pcs = hitungJumlahPcsDetailPenjualan($detail, $detail);
+    $subtotal = (float)$detail['subtotal'];
+    $nama_barang = $detail['nama_barang'];
+
+    mysqli_begin_transaction($conn);
+
+    try {
+        $stmt_stok = mysqli_prepare($conn, "UPDATE barang SET stok = stok + ? WHERE id = ?");
+        mysqli_stmt_bind_param($stmt_stok, "di", $jumlah_pcs, $barang_id);
+        mysqli_stmt_execute($stmt_stok);
+
+        $stmt_del = mysqli_prepare($conn, "DELETE FROM detail_penjualan WHERE id = ?");
+        mysqli_stmt_bind_param($stmt_del, "i", $detail_id);
+        mysqli_stmt_execute($stmt_del);
+
+        $stmt_count = mysqli_prepare($conn, "SELECT COUNT(*) AS cnt FROM detail_penjualan WHERE penjualan_id = ?");
+        mysqli_stmt_bind_param($stmt_count, "i", $penjualan_id);
+        mysqli_stmt_execute($stmt_count);
+        $count_row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_count));
+        $remaining = (int)($count_row['cnt'] ?? 0);
+
+        if ($remaining === 0) {
+            $stmt_penjualan = mysqli_prepare($conn, "DELETE FROM penjualan WHERE id = ?");
+            mysqli_stmt_bind_param($stmt_penjualan, "i", $penjualan_id);
+            mysqli_stmt_execute($stmt_penjualan);
+        } else {
+            $stmt_update = mysqli_prepare($conn, "UPDATE penjualan SET total_bayar = GREATEST(total_bayar - ?, 0) WHERE id = ?");
+            mysqli_stmt_bind_param($stmt_update, "di", $subtotal, $penjualan_id);
+            mysqli_stmt_execute($stmt_update);
+        }
+
+        mysqli_commit($conn);
+
+        return [
+            'ok' => true,
+            'message' => 'Penjualan "' . $nama_barang . '" berhasil dibatalkan. Stok barang telah dikembalikan.',
+        ];
+    } catch (Exception $e) {
+        mysqli_rollback($conn);
+        return ['ok' => false, 'message' => 'Gagal membatalkan penjualan!'];
+    }
+}
+
+/**
+ * Batalkan seluruh transaksi penjualan (semua item) dan kembalikan stok.
+ *
+ * @return array{ok: bool, message: string}
+ */
+function hapusPenjualan(mysqli $conn, int $penjualan_id): array
+{
+    $query = "SELECT dp.*, b.isi_renteng, b.unit_type, b.nama_barang
+              FROM detail_penjualan dp
+              JOIN barang b ON dp.barang_id = b.id
+              WHERE dp.penjualan_id = ?";
+    $stmt = mysqli_prepare($conn, $query);
+    if (!$stmt) {
+        return ['ok' => false, 'message' => 'Gagal memuat data transaksi!'];
+    }
+
+    mysqli_stmt_bind_param($stmt, "i", $penjualan_id);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+
+    $details = [];
+    while ($row = mysqli_fetch_assoc($result)) {
+        $details[] = $row;
+    }
+
+    if (empty($details)) {
+        return ['ok' => false, 'message' => 'Transaksi #' . $penjualan_id . ' tidak ditemukan!'];
+    }
+
+    $item_count = count($details);
+
+    mysqli_begin_transaction($conn);
+
+    try {
+        $stmt_stok = mysqli_prepare($conn, "UPDATE barang SET stok = stok + ? WHERE id = ?");
+
+        foreach ($details as $detail) {
+            $jumlah_pcs = hitungJumlahPcsDetailPenjualan($detail, $detail);
+            $barang_id = (int)$detail['barang_id'];
+            mysqli_stmt_bind_param($stmt_stok, "di", $jumlah_pcs, $barang_id);
+            mysqli_stmt_execute($stmt_stok);
+        }
+
+        $stmt_del_detail = mysqli_prepare($conn, "DELETE FROM detail_penjualan WHERE penjualan_id = ?");
+        mysqli_stmt_bind_param($stmt_del_detail, "i", $penjualan_id);
+        mysqli_stmt_execute($stmt_del_detail);
+
+        $stmt_del_penjualan = mysqli_prepare($conn, "DELETE FROM penjualan WHERE id = ?");
+        mysqli_stmt_bind_param($stmt_del_penjualan, "i", $penjualan_id);
+        mysqli_stmt_execute($stmt_del_penjualan);
+
+        mysqli_commit($conn);
+
+        return [
+            'ok' => true,
+            'message' => 'Transaksi #' . $penjualan_id . ' (' . $item_count . ' item) berhasil dibatalkan. Stok barang telah dikembalikan.',
+        ];
+    } catch (Exception $e) {
+        mysqli_rollback($conn);
+        return ['ok' => false, 'message' => 'Gagal membatalkan transaksi!'];
+    }
+}
+
+/**
+ * Batalkan beberapa baris detail penjualan sekaligus.
+ *
+ * @param int[] $detail_ids
+ * @return array{ok: bool, message: string}
+ */
+function hapusDetailPenjualanBulk(mysqli $conn, array $detail_ids): array
+{
+    $detail_ids = array_values(array_unique(array_filter(array_map('intval', $detail_ids))));
+    if (empty($detail_ids)) {
+        return ['ok' => false, 'message' => 'Tidak ada item yang dipilih!'];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($detail_ids), '?'));
+    $query = "SELECT dp.*, b.isi_renteng, b.unit_type, b.nama_barang
+              FROM detail_penjualan dp
+              JOIN barang b ON dp.barang_id = b.id
+              WHERE dp.id IN ($placeholders)";
+    $stmt = mysqli_prepare($conn, $query);
+    if (!$stmt) {
+        return ['ok' => false, 'message' => 'Gagal memuat data penjualan!'];
+    }
+
+    $types = str_repeat('i', count($detail_ids));
+    mysqli_stmt_bind_param($stmt, $types, ...$detail_ids);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+
+    $details = [];
+    while ($row = mysqli_fetch_assoc($result)) {
+        $details[] = $row;
+    }
+
+    if (empty($details)) {
+        return ['ok' => false, 'message' => 'Data penjualan tidak ditemukan!'];
+    }
+
+    $penjualan_updates = [];
+
+    mysqli_begin_transaction($conn);
+
+    try {
+        $stmt_stok = mysqli_prepare($conn, "UPDATE barang SET stok = stok + ? WHERE id = ?");
+        $stmt_del = mysqli_prepare($conn, "DELETE FROM detail_penjualan WHERE id = ?");
+
+        foreach ($details as $detail) {
+            $detail_id = (int)$detail['id'];
+            $penjualan_id = (int)$detail['penjualan_id'];
+            $jumlah_pcs = hitungJumlahPcsDetailPenjualan($detail, $detail);
+            $barang_id = (int)$detail['barang_id'];
+            $subtotal = (float)$detail['subtotal'];
+
+            mysqli_stmt_bind_param($stmt_stok, "di", $jumlah_pcs, $barang_id);
+            mysqli_stmt_execute($stmt_stok);
+
+            mysqli_stmt_bind_param($stmt_del, "i", $detail_id);
+            mysqli_stmt_execute($stmt_del);
+
+            if (!isset($penjualan_updates[$penjualan_id])) {
+                $penjualan_updates[$penjualan_id] = 0;
+            }
+            $penjualan_updates[$penjualan_id] += $subtotal;
+        }
+
+        $stmt_update = mysqli_prepare($conn, "UPDATE penjualan SET total_bayar = GREATEST(total_bayar - ?, 0) WHERE id = ?");
+        $stmt_count = mysqli_prepare($conn, "SELECT COUNT(*) AS cnt FROM detail_penjualan WHERE penjualan_id = ?");
+        $stmt_del_penjualan = mysqli_prepare($conn, "DELETE FROM penjualan WHERE id = ?");
+
+        foreach ($penjualan_updates as $penjualan_id => $subtotal_dropped) {
+            mysqli_stmt_bind_param($stmt_update, "di", $subtotal_dropped, $penjualan_id);
+            mysqli_stmt_execute($stmt_update);
+
+            mysqli_stmt_bind_param($stmt_count, "i", $penjualan_id);
+            mysqli_stmt_execute($stmt_count);
+            $count_row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_count));
+            $remaining = (int)($count_row['cnt'] ?? 0);
+
+            if ($remaining === 0) {
+                mysqli_stmt_bind_param($stmt_del_penjualan, "i", $penjualan_id);
+                mysqli_stmt_execute($stmt_del_penjualan);
+            }
+        }
+
+        mysqli_commit($conn);
+
+        return [
+            'ok' => true,
+            'message' => count($details) . ' item penjualan berhasil dibatalkan. Stok barang telah dikembalikan.',
+        ];
+    } catch (Exception $e) {
+        mysqli_rollback($conn);
+        return ['ok' => false, 'message' => 'Gagal membatalkan penjualan!'];
+    }
+}
+
 function hargaBeliGramSatuan($harga_beli)
 {
     $harga_beli = (float)$harga_beli;
